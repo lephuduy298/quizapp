@@ -23,6 +23,18 @@ class QuizRepository(
         return quizDao.insertQuizWithQuestions(quiz, questions)
     }
 
+    suspend fun addQuestion(question: QuestionEntity): Long {
+        return quizDao.insertQuestion(question)
+    }
+
+    suspend fun updateQuestion(question: QuestionEntity) {
+        quizDao.updateQuestion(question)
+    }
+
+    suspend fun addQuestions(questions: List<QuestionEntity>) {
+        quizDao.insertQuestions(questions)
+    }
+
     suspend fun deleteQuizById(quizId: Long) {
         quizDao.deleteQuizById(quizId)
     }

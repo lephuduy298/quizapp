@@ -44,6 +44,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import com.example.QuizApplication
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.example.data.local.QuestionEntity
 import com.example.data.local.QuizEntity
 import com.example.data.local.QuizSessionEntity
@@ -65,6 +68,7 @@ import java.util.concurrent.Executors
 fun HomeScreen(
     viewModel: QuizViewModel,
     onStartQuiz: (QuizWithQuestions) -> Unit,
+    onEditQuiz: (QuizWithQuestions) -> Unit,
     onViewSession: (QuizWithQuestions, Long) -> Unit,
     onNavigateToCamera: () -> Unit
 ) {
@@ -79,7 +83,8 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .statusBarsPadding(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -132,7 +137,8 @@ fun HomeScreen(
         floatingActionButton = {
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
                 // Quick Manual Create
                 FloatingActionButton(
@@ -277,6 +283,7 @@ fun HomeScreen(
                     QuizDensityRow(
                         quizWithQuestions = item,
                         onStart = { onStartQuiz(item) },
+                        onEdit = { onEditQuiz(item) },
                         onDelete = { viewModel.deleteQuiz(item.quiz.id) }
                     )
                 }
@@ -384,26 +391,12 @@ fun HomeScreen(
                             onClick = {
                                 if (title.isNotBlank()) {
                                     val durationVal = duration.toIntOrNull() ?: 15
-                                    // Make 2 mock questions inside this quiz to make it functional
-                                    val question1 = QuestionEntity(
-                                        id = 0,
-                                        quizId = 0,
-                                        text = "Nhật Bản thuộc châu lục nào sau đây?",
-                                        options = listOf("Châu Á", "Châu Âu", "Châu Mỹ", "Châu Phi"),
-                                        correctOptionIndex = 0
-                                    )
-                                    val question2 = QuestionEntity(
-                                        id = 0,
-                                        quizId = 0,
-                                        text = "Kính ngữ của động từ '食べる' (ăn) trong tiếng Nhật là gì?",
-                                        options = listOf("めしあがる", "ご覧になる", "おっしゃる", "まいる"),
-                                        correctOptionIndex = 0
-                                    )
+                                    // Create an empty quiz as requested by user
                                     viewModel.createQuickQuiz(
                                         title = title,
                                         topic = topic,
                                         duration = durationVal,
-                                        questionsList = listOf(question1, question2)
+                                        questionsList = emptyList()
                                     )
                                     showQuickCreateDialog = false
                                 }
@@ -473,12 +466,12 @@ fun CardEmptyState(
 fun QuizDensityRow(
     quizWithQuestions: QuizWithQuestions,
     onStart: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onStart),
+            .fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, BorderColor)
@@ -486,6 +479,7 @@ fun QuizDensityRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onStart)
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -531,6 +525,13 @@ fun QuizDensityRow(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Sửa đề thi",
+                        tint = PrimaryPurple.copy(alpha = 0.8f)
+                    )
+                }
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -635,6 +636,7 @@ fun SessionHistoryRow(
 @Composable
 fun CameraScanScreen(
     viewModel: QuizViewModel,
+    targetQuizId: Long? = null,
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit
 ) {
@@ -657,7 +659,7 @@ fun CameraScanScreen(
                     val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
                     val bitmap = BitmapFactory.decodeStream(inputStream)
                     if (bitmap != null) {
-                        viewModel.generateQuizFromImage(bitmap, promptAdditionText)
+                        viewModel.generateQuizFromImage(bitmap, promptAdditionText, targetQuizId)
                     } else {
                         Log.e("CameraScanScreen", "Failed to deserialize selected image to bitmap")
                     }
@@ -820,12 +822,13 @@ fun CameraScanScreen(
                                         if (capture != null) {
                                             viewModel.generateQuizFromImage(
                                                 Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888), // Fallback if emulator
-                                                promptAdditionText
+                                                promptAdditionText,
+                                                targetQuizId
                                             )
                                         } else {
                                             // Test fallback direct generation with dummy bitmap
                                             val dummyBitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
-                                            viewModel.generateQuizFromImage(dummyBitmap, promptAdditionText)
+                                            viewModel.generateQuizFromImage(dummyBitmap, promptAdditionText, targetQuizId)
                                         }
                                     },
                                 contentAlignment = Alignment.Center
@@ -850,7 +853,8 @@ fun CameraScanScreen(
                                             val dummyBitmap = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888)
                                             viewModel.generateQuizFromImage(
                                                 dummyBitmap,
-                                                "Mô phỏng chụp đề thi tiếng Nhật N3"
+                                                "Mô phỏng chụp đề thi tiếng Nhật N3",
+                                                targetQuizId
                                             )
                                         },
                                     contentAlignment = Alignment.Center
@@ -1259,11 +1263,8 @@ fun QuizReviewScreen(
     var activeSession = activeState.sessionEntity
 
     // Locate matching quiz & session if not already pre-populated inside activeState
-    LaunchedEffect(quizId, sessionId, activeState) {
-        if (activeState.quizWithQuestions?.quiz?.id != quizId || activeState.sessionEntity?.id != sessionId) {
-            // Find properly inside database and parse if necessary
-            // For now, we utilize the active game state which updates seamlessly.
-        }
+    LaunchedEffect(quizId, sessionId) {
+        viewModel.loadQuizAndSession(quizId, sessionId)
     }
 
     Scaffold(
@@ -1583,5 +1584,164 @@ fun QuizReviewScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageQuestionsScreen(
+    viewModel: QuizViewModel,
+    quizId: Long,
+    onNavigateBack: () -> Unit,
+    onAddViaAI: (Long) -> Unit
+) {
+    val allQuizzes by viewModel.quizzes.collectAsState(initial = emptyList())
+    val quizWithQuestions = allQuizzes.find { it.quiz.id == quizId }
+    var showAddManualDialog by remember { mutableStateOf(false) }
+    var editingQuestion by remember { mutableStateOf<QuestionEntity?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(quizWithQuestions?.quiz?.title ?: "Quản lý câu hỏi") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        floatingActionButton = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                FloatingActionButton(
+                    onClick = { onAddViaAI(quizId) },
+                    containerColor = Color(0xFF03A9F4), // Sky Blue for AI
+                    contentColor = Color.White
+                ) {
+                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = "Thêm bằng AI")
+                }
+                FloatingActionButton(
+                    onClick = { showAddManualDialog = true },
+                    containerColor = PrimaryPurple,
+                    contentColor = Color.White
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Thêm thủ công")
+                }
+            }
+        }
+    ) { padding ->
+        if (quizWithQuestions == null || quizWithQuestions.questions.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("Chưa có câu hỏi nào. Hãy thêm câu hỏi mới!")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(quizWithQuestions.questions) { question ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                editingQuestion = question
+                                showAddManualDialog = true
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, BorderColor)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(text = question.text, fontWeight = FontWeight.Bold, color = BodyTextColor)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            question.options.forEachIndexed { index, option ->
+                                Text(
+                                    text = "${(index + 65).toChar()}. $option",
+                                    color = if (index == question.correctOptionIndex) PrimaryPurple else BodyTextColor,
+                                    fontWeight = if (index == question.correctOptionIndex) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddManualDialog) {
+        var questionText by remember { mutableStateOf(editingQuestion?.text ?: "") }
+        var options by remember { mutableStateOf(editingQuestion?.options ?: listOf("", "", "", "")) }
+        var correctIndex by remember { mutableIntStateOf(editingQuestion?.correctOptionIndex ?: 0) }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAddManualDialog = false
+                editingQuestion = null
+            },
+            title = { Text(if (editingQuestion == null) "Thêm câu hỏi thủ công" else "Sửa câu hỏi") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = questionText,
+                        onValueChange = { questionText = it },
+                        label = { Text("Câu hỏi") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    options.forEachIndexed { index, option ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = (correctIndex == index),
+                                onClick = { correctIndex = index }
+                            )
+                            OutlinedTextField(
+                                value = option,
+                                onValueChange = { newVal ->
+                                    val newList = options.toMutableList()
+                                    newList[index] = newVal
+                                    options = newList
+                                },
+                                label = { Text("Đáp án ${(index + 65).toChar()}") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (questionText.isNotBlank() && options.all { it.isNotBlank() }) {
+                        if (editingQuestion == null) {
+                            viewModel.addQuestion(quizId, questionText, options, correctIndex)
+                        } else {
+                            viewModel.updateQuestion(editingQuestion!!.id, quizId, questionText, options, correctIndex)
+                        }
+                        showAddManualDialog = false
+                        editingQuestion = null
+                    }
+                }) {
+                    Text("Lưu")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddManualDialog = false
+                    editingQuestion = null
+                }) {
+                    Text("Hủy")
+                }
+            }
+        )
     }
 }
