@@ -43,8 +43,14 @@ interface QuizDao {
         return quizId
     }
 
+    @Insert
+    suspend fun insertQuestion(question: QuestionEntity): Long
+
     @Update
     suspend fun updateQuiz(quiz: QuizEntity)
+
+    @Update
+    suspend fun updateQuestion(question: QuestionEntity)
 
     @Delete
     suspend fun deleteQuiz(quiz: QuizEntity)

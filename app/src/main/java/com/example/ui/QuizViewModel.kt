@@ -97,29 +97,42 @@ class QuizViewModel(
     }
 
     // Capture image & request quiz generation from Gemini
-    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "") {
+    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "", targetQuizId: Long? = null) {
         _generationState.value = QuizGenerationState.Generating
         viewModelScope.launch {
             val result = aiRepository.generateQuizFromImage(bitmap, promptAddition)
             result.fold(
                 onSuccess = { generated ->
                     try {
-                        // Persist quiz to Database
-                        val quizEntity = QuizEntity(
-                            title = generated.title,
-                            topic = generated.topic,
-                            durationMinutes = 10 + (generated.questions.size * 2) // Dynamic quiz length
-                        )
-                        val questionEntities = generated.questions.map { q ->
-                            QuestionEntity(
-                                quizId = 0, // Assigned inside the repository transaction
-                                text = q.text,
-                                options = q.options,
-                                correctOptionIndex = q.correctOptionIndex
+                        if (targetQuizId != null) {
+                            // Add questions to existing quiz
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = targetQuizId,
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
+                            quizRepository.addQuestions(questionEntities)
+                        } else {
+                            // Persist NEW quiz to Database
+                            val quizEntity = QuizEntity(
+                                title = generated.title,
+                                topic = generated.topic,
+                                durationMinutes = 10 + (generated.questions.size * 2) // Dynamic quiz length
                             )
-                        }
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = 0, // Assigned inside the repository transaction
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
 
-                        quizRepository.insertQuizWithQuestions(quizEntity, questionEntities)
+                            quizRepository.insertQuizWithQuestions(quizEntity, questionEntities)
+                        }
                         _generationState.value = QuizGenerationState.Success
                     } catch (e: Exception) {
                         _generationState.value = QuizGenerationState.Error("DB error: " + (e.message ?: "Failed to save quiz."))
@@ -140,6 +153,31 @@ class QuizViewModel(
         }
     }
 
+    fun addQuestion(quizId: Long, text: String, options: List<String>, correctIndex: Int) {
+        viewModelScope.launch {
+            val question = QuestionEntity(
+                quizId = quizId,
+                text = text,
+                options = options,
+                correctOptionIndex = correctIndex
+            )
+            quizRepository.addQuestion(question)
+        }
+    }
+
+    fun updateQuestion(questionId: Long, quizId: Long, text: String, options: List<String>, correctIndex: Int) {
+        viewModelScope.launch {
+            val question = QuestionEntity(
+                id = questionId,
+                quizId = quizId,
+                text = text,
+                options = options,
+                correctOptionIndex = correctIndex
+            )
+            quizRepository.updateQuestion(question)
+        }
+    }
+
     // Delete a particular quiz
     fun deleteQuiz(quizId: Long) {
         viewModelScope.launch {
@@ -148,6 +186,27 @@ class QuizViewModel(
     }
 
     // --- QUIZ GAMEPLAY CONTROL ---
+
+    // --- QUIZ GAMEPLAY CONTROL ---
+
+    fun loadQuizAndSession(quizId: Long, sessionId: Long) {
+        viewModelScope.launch {
+            val quizWithQuestions = quizRepository.getQuizWithQuestionsById(quizId)
+            val session = quizRepository.getSessionById(sessionId)
+            
+            if (quizWithQuestions != null && session != null) {
+                _activeQuiz.value = ActiveQuizState(
+                    quizWithQuestions = quizWithQuestions,
+                    currentQuestionIndex = 0,
+                    selectedAnswers = session.answersMap,
+                    secondsRemaining = 0,
+                    isTimerRunning = false,
+                    isSubmitted = true,
+                    sessionEntity = session
+                )
+            }
+        }
+    }
 
     // Initialize an active quiz session
     fun startQuizSession(quizWithQuestions: QuizWithQuestions) {

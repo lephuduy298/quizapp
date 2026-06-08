@@ -12,6 +12,7 @@ import com.example.ui.QuizViewModel
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CameraScanScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.ManageQuestionsScreen
 import com.example.ui.screens.QuizPlayScreen
 import com.example.ui.screens.QuizReviewScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -54,12 +55,17 @@ class MainActivity : ComponentActivity() {
                                     viewModel.startQuizSession(quizWithQuestions)
                                     currentScreen = "play"
                                 },
+                                onEditQuiz = { quizWithQuestions ->
+                                    selectedQuizId = quizWithQuestions.quiz.id
+                                    currentScreen = "manage_questions"
+                                },
                                 onViewSession = { quizWithQuestions, sessionId ->
                                     selectedQuizId = quizWithQuestions.quiz.id
                                     selectedSessionId = sessionId
                                     currentScreen = "review"
                                 },
                                 onNavigateToCamera = {
+                                    selectedQuizId = 0L // Creating new quiz
                                     currentScreen = "camera"
                                 }
                             )
@@ -67,8 +73,23 @@ class MainActivity : ComponentActivity() {
                         "camera" -> {
                             CameraScanScreen(
                                 viewModel = viewModel,
-                                onNavigateBack = { currentScreen = "home" },
+                                targetQuizId = if (selectedQuizId == 0L) null else selectedQuizId,
+                                onNavigateBack = { 
+                                    if (selectedQuizId == 0L) currentScreen = "home" 
+                                    else currentScreen = "manage_questions" 
+                                },
                                 onNavigateToHome = { currentScreen = "home" }
+                            )
+                        }
+                        "manage_questions" -> {
+                            ManageQuestionsScreen(
+                                viewModel = viewModel,
+                                quizId = selectedQuizId,
+                                onNavigateBack = { currentScreen = "home" },
+                                onAddViaAI = { quizId ->
+                                    selectedQuizId = quizId
+                                    currentScreen = "camera"
+                                }
                             )
                         }
                         "play" -> {
