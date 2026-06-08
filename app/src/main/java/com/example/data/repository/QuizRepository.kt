@@ -1,0 +1,49 @@
+package com.example.data.repository
+
+import com.example.data.local.*
+import kotlinx.coroutines.flow.Flow
+
+class QuizRepository(
+    private val quizDao: QuizDao,
+    private val quizSessionDao: QuizSessionDao
+) {
+    val allQuizzesWithQuestions: Flow<List<QuizWithQuestions>> = quizDao.getAllQuizzesWithQuestionsFlow()
+    val allQuizzes: Flow<List<QuizEntity>> = quizDao.getAllQuizzesFlow()
+    val allSessions: Flow<List<QuizSessionEntity>> = quizSessionDao.getAllSessionsFlow()
+
+    suspend fun getQuizWithQuestionsById(quizId: Long): QuizWithQuestions? {
+        return quizDao.getQuizWithQuestionsById(quizId)
+    }
+
+    suspend fun getQuizById(quizId: Long): QuizEntity? {
+        return quizDao.getQuizById(quizId)
+    }
+
+    suspend fun insertQuizWithQuestions(quiz: QuizEntity, questions: List<QuestionEntity>): Long {
+        return quizDao.insertQuizWithQuestions(quiz, questions)
+    }
+
+    suspend fun deleteQuizById(quizId: Long) {
+        quizDao.deleteQuizById(quizId)
+    }
+
+    suspend fun deleteQuiz(quiz: QuizEntity) {
+        quizDao.deleteQuiz(quiz)
+    }
+
+    fun getSessionsForQuiz(quizId: Long): Flow<List<QuizSessionEntity>> {
+        return quizSessionDao.getSessionsForQuizFlow(quizId)
+    }
+
+    suspend fun getSessionById(sessionId: Long): QuizSessionEntity? {
+        return quizSessionDao.getSessionById(sessionId)
+    }
+
+    suspend fun insertSession(session: QuizSessionEntity): Long {
+        return quizSessionDao.insertSession(session)
+    }
+
+    suspend fun deleteSessionById(sessionId: Long) {
+        quizSessionDao.deleteSessionById(sessionId)
+    }
+}

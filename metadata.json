@@ -1,0 +1,6 @@
+{
+  "name": "QuizAI Studio",
+  "description": "An AI-powered quiz generator and tutor application powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
