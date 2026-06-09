@@ -53,6 +53,9 @@ interface QuizDao {
     suspend fun updateQuestion(question: QuestionEntity)
 
     @Delete
+    suspend fun deleteQuestion(question: QuestionEntity)
+
+    @Delete
     suspend fun deleteQuiz(quiz: QuizEntity)
 
     @Query("DELETE FROM quizzes WHERE id = :quizId")

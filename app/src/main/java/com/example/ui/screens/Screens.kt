@@ -47,6 +47,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import com.example.data.local.QuestionEntity
 import com.example.data.local.QuizEntity
 import com.example.data.local.QuizSessionEntity
@@ -77,6 +80,7 @@ fun HomeScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val userInitials = currentUser?.trim()?.take(2)?.uppercase() ?: "AI"
     var showQuickCreateDialog by remember { mutableStateOf(false) }
+    var quizToDelete by remember { mutableStateOf<QuizWithQuestions?>(null) }
 
     Scaffold(
         topBar = {
@@ -284,7 +288,7 @@ fun HomeScreen(
                         quizWithQuestions = item,
                         onStart = { onStartQuiz(item) },
                         onEdit = { onEditQuiz(item) },
-                        onDelete = { viewModel.deleteQuiz(item.quiz.id) }
+                        onDelete = { quizToDelete = item }
                     )
                 }
             }
@@ -362,21 +366,24 @@ fun HomeScreen(
                         value = title,
                         onValueChange = { title = it },
                         label = { Text("Tên đề thi") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
                     )
 
                     OutlinedTextField(
                         value = topic,
                         onValueChange = { topic = it },
                         label = { Text("Chủ đề / Phân loại") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
                     )
 
                     OutlinedTextField(
                         value = duration,
                         onValueChange = { duration = it },
                         label = { Text("Thời gian làm bài (phút)") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
 
                     Row(
@@ -409,6 +416,31 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    // Deletion Confirmation Dialog for Quiz
+    if (quizToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { quizToDelete = null },
+            title = { Text("Xác nhận xóa đề thi") },
+            text = { Text("Bạn có chắc chắn muốn xóa đề thi '${quizToDelete?.quiz?.title}'? Hành động này không thể hoàn tác.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        quizToDelete?.let { viewModel.deleteQuiz(it.quiz.id) }
+                        quizToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                ) {
+                    Text("Xóa")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { quizToDelete = null }) {
+                    Text("Hủy")
+                }
+            }
+        )
     }
 }
 
@@ -1620,6 +1652,7 @@ fun ManageQuestionsScreen(
     val quizWithQuestions = allQuizzes.find { it.quiz.id == quizId }
     var showAddManualDialog by remember { mutableStateOf(false) }
     var editingQuestion by remember { mutableStateOf<QuestionEntity?>(null) }
+    var questionToDelete by remember { mutableStateOf<QuestionEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -1670,17 +1703,55 @@ fun ManageQuestionsScreen(
                 items(quizWithQuestions.questions) { question ->
                     Card(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                editingQuestion = question
-                                showAddManualDialog = true
-                            },
+                            .fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, BorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(text = question.text, fontWeight = FontWeight.Bold, color = BodyTextColor)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = question.text,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BodyTextColor,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(start = 8.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            editingQuestion = question
+                                            showAddManualDialog = true
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Sửa",
+                                            tint = PrimaryPurple,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { questionToDelete = question },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Xóa",
+                                            tint = ErrorRed,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                             question.options.forEachIndexed { index, option ->
                                 Text(
@@ -1760,6 +1831,31 @@ fun ManageQuestionsScreen(
                     showAddManualDialog = false
                     editingQuestion = null
                 }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+
+    // Deletion Confirmation Dialog for Question
+    if (questionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { questionToDelete = null },
+            title = { Text("Xác nhận xóa câu hỏi") },
+            text = { Text("Bạn có chắc chắn muốn xóa câu hỏi này? Hành động này không thể hoàn tác.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        questionToDelete?.let { viewModel.deleteQuestion(it) }
+                        questionToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                ) {
+                    Text("Xóa")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { questionToDelete = null }) {
                     Text("Hủy")
                 }
             }

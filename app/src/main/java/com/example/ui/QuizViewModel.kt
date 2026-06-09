@@ -178,6 +178,12 @@ class QuizViewModel(
         }
     }
 
+    fun deleteQuestion(question: QuestionEntity) {
+        viewModelScope.launch {
+            quizRepository.deleteQuestion(question)
+        }
+    }
+
     // Delete a particular quiz
     fun deleteQuiz(quizId: Long) {
         viewModelScope.launch {

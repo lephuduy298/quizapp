@@ -31,6 +31,10 @@ class QuizRepository(
         quizDao.updateQuestion(question)
     }
 
+    suspend fun deleteQuestion(question: QuestionEntity) {
+        quizDao.deleteQuestion(question)
+    }
+
     suspend fun addQuestions(questions: List<QuestionEntity>) {
         quizDao.insertQuestions(questions)
     }
