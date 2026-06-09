@@ -320,7 +320,16 @@ class QuizViewModel(
 
     fun getAIExplanation(question: QuestionEntity, selectedIndex: Int) {
         val questionId = question.id
-        if (_explanations.value.containsKey(questionId) || _loadingExplanations.value.contains(questionId)) {
+        
+        // If it's already loading, don't trigger again
+        if (_loadingExplanations.value.contains(questionId)) {
+            return
+        }
+
+        // If there's an existing successful explanation, we don't need to fetch it again.
+        // But if it's an error message, we allow retrying.
+        val existing = _explanations.value[questionId]
+        if (existing != null && !existing.startsWith("Không thể tải giải tích")) {
             return
         }
 

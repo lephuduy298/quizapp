@@ -1521,24 +1521,45 @@ fun QuizReviewScreen(
                                         .padding(14.dp)
                                 ) {
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Icon(
-                                                imageVector = Icons.Default.AutoAwesome,
-                                                contentDescription = null,
-                                                tint = DarkPurple,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Text(
-                                                text = "Giải Thích Từ AI Trợ Lý",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                color = DarkPurple
-                                            )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = DarkPurple,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = "Giải Thích Từ AI Trợ Lý",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = DarkPurple
+                                                )
+                                            }
+                                            
+                                            // Show retry icon only if it's an error message
+                                            if (explanation.startsWith("Không thể tải giải tích")) {
+                                                IconButton(
+                                                    onClick = { viewModel.getAIExplanation(question, selectedOption ?: -1) },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Refresh,
+                                                        contentDescription = "Thử lại",
+                                                        tint = PrimaryPurple,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                         Text(
                                             text = explanation,
                                             fontSize = 12.sp,
-                                            color = BodyTextColor,
+                                            color = if (explanation.startsWith("Không thể tải giải tích")) ErrorRed else BodyTextColor,
                                             lineHeight = 18.sp
                                         )
                                     }

@@ -6,9 +6,12 @@ import android.util.Log
 import com.example.BuildConfig
 import com.example.data.remote.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import retrofit2.HttpException
 
 interface AIRepository {
     suspend fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = ""): Result<GeneratedQuizJson>
@@ -25,6 +28,32 @@ class DirectGeminiAIRepositoryImpl(
 ) : AIRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    private suspend fun <T> retryIO(
+        times: Int = 3,
+        initialDelay: Long = 1000,
+        maxDelay: Long = 4000,
+        factor: Double = 2.0,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = initialDelay
+        repeat(times - 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                val isRetryable = when (e) {
+                    is HttpException -> e.code() == 429 || e.code() == 503 || e.code() >= 500
+                    is IOException -> true
+                    else -> false
+                }
+                if (!isRetryable) throw e
+                Log.w("AIRepository", "Attempt ${attempt + 1} failed: ${e.message}. Retrying in ${currentDelay}ms...")
+            }
+            delay(currentDelay)
+            currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
+        }
+        return block() // Last attempt
+    }
 
     override suspend fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String): Result<GeneratedQuizJson> = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
@@ -80,7 +109,7 @@ class DirectGeminiAIRepositoryImpl(
         )
 
         try {
-            val response = apiService.generateContent(apiKey, request)
+            val response = retryIO { apiService.generateContent(apiKey, request) }
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: return@withContext Result.failure(Exception("AI did not return any parseable response text."))
 
@@ -91,7 +120,12 @@ class DirectGeminiAIRepositoryImpl(
             Result.success(generatedQuiz)
         } catch (e: Exception) {
             Log.e("AIRepository", "Error generating quiz from image", e)
-            Result.failure(e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận (Quá tải yêu cầu). Vui lòng đợi một lát rồi thử lại."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau."
+                else -> e.message ?: "Lỗi không xác định khi kết nối với AI."
+            }
+            Result.failure(Exception(friendlyMessage))
         }
     }
 
@@ -125,13 +159,18 @@ class DirectGeminiAIRepositoryImpl(
         )
 
         try {
-            val response = apiService.generateContent(apiKey, request)
+            val response = retryIO { apiService.generateContent(apiKey, request) }
             val explanation = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: return@withContext Result.failure(Exception("AI did not return any explanation."))
             Result.success(explanation)
         } catch (e: Exception) {
             Log.e("AIRepository", "Error explaining quiz answer", e)
-            Result.failure(e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận. Vui lòng đợi một lát."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI đang bảo trì. Vui lòng thử lại sau."
+                else -> e.message ?: "Không thể lấy giải thích từ AI."
+            }
+            Result.failure(Exception(friendlyMessage))
         }
     }
 
