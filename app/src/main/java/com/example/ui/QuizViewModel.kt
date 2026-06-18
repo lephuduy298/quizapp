@@ -145,6 +145,54 @@ class QuizViewModel(
         }
     }
 
+    // Generate quiz from text prompt
+    fun generateQuizFromText(prompt: String, targetQuizId: Long? = null) {
+        _generationState.value = QuizGenerationState.Generating
+        viewModelScope.launch {
+            val result = aiRepository.generateQuizFromText(prompt)
+            result.fold(
+                onSuccess = { generated ->
+                    try {
+                        if (targetQuizId != null) {
+                            // Add questions to existing quiz
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = targetQuizId,
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
+                            quizRepository.addQuestions(questionEntities)
+                        } else {
+                            // Persist NEW quiz to Database
+                            val quizEntity = QuizEntity(
+                                title = generated.title,
+                                topic = generated.topic,
+                                durationMinutes = 10 + (generated.questions.size * 2)
+                            )
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = 0,
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
+                            quizRepository.insertQuizWithQuestions(quizEntity, questionEntities)
+                        }
+                        _generationState.value = QuizGenerationState.Success
+                    } catch (e: Exception) {
+                        _generationState.value = QuizGenerationState.Error("DB error: " + (e.message ?: "Failed to save quiz."))
+                    }
+                },
+                onFailure = { error ->
+                    _generationState.value = QuizGenerationState.Error(error.message ?: "Unknown error while calling AI.")
+                }
+            )
+        }
+    }
+
     // Create a mock default or quick manual quiz
     fun createQuickQuiz(title: String, topic: String, duration: Int, questionsList: List<QuestionEntity>) {
         viewModelScope.launch {
@@ -190,8 +238,6 @@ class QuizViewModel(
             quizRepository.deleteQuizById(quizId)
         }
     }
-
-    // --- QUIZ GAMEPLAY CONTROL ---
 
     // --- QUIZ GAMEPLAY CONTROL ---
 

@@ -78,9 +78,20 @@ fun HomeScreen(
     val quizzes by viewModel.quizzes.collectAsState(initial = emptyList())
     val sessions by viewModel.sessions.collectAsState(initial = emptyList())
     val currentUser by viewModel.currentUser.collectAsState()
+    val generationState by viewModel.generationState.collectAsState()
+    
     val userInitials = currentUser?.trim()?.take(2)?.uppercase() ?: "AI"
     var showQuickCreateDialog by remember { mutableStateOf(false) }
+    var showAIChatDialog by remember { mutableStateOf(false) }
+    var showAICreationSelection by remember { mutableStateOf(false) }
     var quizToDelete by remember { mutableStateOf<QuizWithQuestions?>(null) }
+
+    LaunchedEffect(generationState) {
+        if (generationState is QuizGenerationState.Success) {
+            viewModel.resetGenerationState()
+            showAIChatDialog = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -144,192 +155,195 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                // Quick Manual Create
+                // Main AI Creation Button
+                ExtendedFloatingActionButton(
+                    onClick = { showAICreationSelection = true },
+                    containerColor = PrimaryPurple,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+                    text = { Text("Tạo Đề Bằng AI", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("main_ai_fab")
+                )
+
+                // Quick Manual Create (Small icon only)
                 FloatingActionButton(
                     onClick = { showQuickCreateDialog = true },
                     containerColor = LightPurpleContainer,
                     contentColor = DarkPurple,
-                    modifier = Modifier.testTag("manual_create_fab")
+                    modifier = Modifier.size(48.dp).testTag("manual_create_fab")
                 ) {
                     Icon(imageVector = Icons.Default.Edit, contentDescription = "Sổ đề thủ công")
-                }
-
-                // AI Generated from Camera
-                FloatingActionButton(
-                    onClick = onNavigateToCamera,
-                    containerColor = PrimaryPurple,
-                    contentColor = Color.White,
-                    modifier = Modifier.testTag("ai_camera_fab")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "Camera AI")
-                        Text(text = "Tạo Đề Bằng AI", fontWeight = FontWeight.Bold)
-                    }
                 }
             }
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(HighDensityBackground)
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // HIGH DENSITY SUMMARY CARDS
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Total Quizzes Card
-                    Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(HighDensityBackground)
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // HIGH DENSITY SUMMARY CARDS
+                item {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White)
-                            .border(1.dp, BorderColor, RoundedCornerShape(24.dp))
-                            .padding(16.dp)
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "TỔNG SỐ ĐỀ THI",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryPurple,
-                                letterSpacing = 1.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${quizzes.size}",
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BodyTextColor
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Lưu ngoại tuyến",
-                                fontSize = 11.sp,
-                                color = SecondaryTextColor
-                            )
+                        // Total Quizzes Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(Color.White)
+                                .border(1.dp, BorderColor, RoundedCornerShape(24.dp))
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TỔNG SỐ ĐỀ THI",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryPurple,
+                                    letterSpacing = 1.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${quizzes.size}",
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = BodyTextColor
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Lưu ngoại tuyến",
+                                    fontSize = 11.sp,
+                                    color = SecondaryTextColor
+                                )
+                            }
                         }
-                    }
 
-                    // Token / Status Card
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(LightPurpleContainer)
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = "TRỢ LÝ GEMINI",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DarkPurple,
-                                letterSpacing = 1.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "3.5 Flash",
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Black,
-                                color = DarkPurple
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Tự động phân giải",
-                                fontSize = 11.sp,
-                                color = DarkPurple.copy(alpha = 0.8f)
-                            )
+                        // Token / Status Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(LightPurpleContainer)
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TRỢ LÝ GEMINI",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DarkPurple,
+                                    letterSpacing = 1.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "1.5 Flash 8B",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = DarkPurple
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tối ưu tốc độ",
+                                    fontSize = 11.sp,
+                                    color = DarkPurple.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // RECENT ACTIVITY HEADER
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                // RECENT ACTIVITY HEADER
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "DANH SÁCH ĐỀ THI (${quizzes.size})",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SecondaryTextColor,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                // LIST OF QUIZZES
+                if (quizzes.isEmpty()) {
+                    item {
+                        CardEmptyState(
+                            title = "Chưa có đề thi nào",
+                            subtitle = "Chụp một tài liệu bài tập hoặc ra lệnh cho AI Chat soạn đề giúp bạn để bắt đầu học tập.",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    itemsIndexed(quizzes) { index, item ->
+                        QuizDensityRow(
+                            quizWithQuestions = item,
+                            onStart = { onStartQuiz(item) },
+                            onEdit = { onEditQuiz(item) },
+                            onDelete = { quizToDelete = item }
+                        )
+                    }
+                }
+
+                // SESSION HISTORICAL LOGS
+                item {
                     Text(
-                        text = "DANH SÁCH ĐỀ THI (${quizzes.size})",
+                        text = "LỊCH SỬ THI & KIỂM TRA",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = SecondaryTextColor,
-                        letterSpacing = 1.sp
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
-            }
 
-            // LIST OF QUIZZES
-            if (quizzes.isEmpty()) {
-                item {
-                    CardEmptyState(
-                        title = "Chưa có đề thi nào",
-                        subtitle = "Chụp một tài liệu bài tập hoặc tạo một đề thi thủ công bằng nút bên dưới để bắt đầu học tập cùng AI trợ lý.",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            } else {
-                itemsIndexed(quizzes) { index, item ->
-                    QuizDensityRow(
-                        quizWithQuestions = item,
-                        onStart = { onStartQuiz(item) },
-                        onEdit = { onEditQuiz(item) },
-                        onDelete = { quizToDelete = item }
-                    )
-                }
-            }
-
-            // SESSION HISTORICAL LOGS
-            item {
-                Text(
-                    text = "LỊCH SỬ THI & KIỂM TRA",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryTextColor,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            if (sessions.isEmpty()) {
-                item {
-                    CardEmptyState(
-                        title = "Chưa có lịch sử làm bài",
-                        subtitle = "Khi bạn hoàn thành đề thi và bấm Nộp bài, các thống kê chi tiết & kết quả phân tích sẽ hiển thị tại đây.",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            } else {
-                itemsIndexed(sessions) { idx, session ->
-                    val matchedQuiz = quizzes.find { it.quiz.id == session.quizId }
-                    SessionHistoryRow(
-                        session = session,
-                        quizWithQuestions = matchedQuiz,
-                        onView = {
-                            if (matchedQuiz != null) {
-                                onViewSession(matchedQuiz, session.id)
+                if (sessions.isEmpty()) {
+                    item {
+                        CardEmptyState(
+                            title = "Chưa có lịch sử làm bài",
+                            subtitle = "Khi bạn hoàn thành đề thi và bấm Nộp bài, các kết quả sẽ hiển thị tại đây.",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    itemsIndexed(sessions) { idx, session ->
+                        val matchedQuiz = quizzes.find { it.quiz.id == session.quizId }
+                        SessionHistoryRow(
+                            session = session,
+                            quizWithQuestions = matchedQuiz,
+                            onView = {
+                                if (matchedQuiz != null) {
+                                    onViewSession(matchedQuiz, session.id)
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
+            // PROCESSING OVERLAY
+            if (generationState !is QuizGenerationState.Idle) {
+                AIGenerationOverlay(
+                    state = generationState,
+                    onReset = { viewModel.resetGenerationState() }
+                )
             }
         }
     }
@@ -441,6 +455,188 @@ fun HomeScreen(
                 }
             }
         )
+    }
+
+    if (showAIChatDialog) {
+        AIChatGenerationDialog(
+            onDismiss = { showAIChatDialog = false },
+            onGenerate = { prompt ->
+                viewModel.generateQuizFromText(prompt)
+                showAIChatDialog = false
+            }
+        )
+    }
+
+    // AI Creation Selection Dialog
+    if (showAICreationSelection) {
+        AICreationSelectionDialog(
+            onDismiss = { showAICreationSelection = false },
+            onSelectChat = {
+                showAICreationSelection = false
+                showAIChatDialog = true
+            },
+            onSelectCamera = {
+                showAICreationSelection = false
+                onNavigateToCamera()
+            }
+        )
+    }
+}
+
+@Composable
+fun AICreationSelectionDialog(
+    onDismiss: () -> Unit,
+    onSelectChat: () -> Unit,
+    onSelectCamera: () -> Unit,
+    title: String = "Chọn phương thức tạo đề"
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = BodyTextColor
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Option 1: Chat Prompt
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onSelectChat() },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(32.dp))
+                            Text("Nhập lệnh Chat", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2), textAlign = TextAlign.Center)
+                        }
+                    }
+
+                    // Option 2: Camera Scan
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onSelectCamera() },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(32.dp))
+                            Text("Chụp ảnh đề", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryPurple, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+                
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text("Đóng")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AIGenerationOverlay(
+    state: QuizGenerationState,
+    onReset: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.85f))
+            .clickable(enabled = false) {}, // Block clicks below
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(24.dp)
+        ) {
+            when (state) {
+                is QuizGenerationState.Generating -> {
+                    CircularProgressIndicator(color = PrimaryPurple)
+                    Text(
+                        text = "AI Đang Soạn Đề...",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = "Mô hình Gemini đang xử lý yêu cầu của bạn, thiết kế các câu hỏi và đáp án tối ưu nhất...",
+                        color = Color.LightGray,
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+                is QuizGenerationState.Error -> {
+                    Icon(
+                        imageVector = Icons.Default.Cancel,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Lỗi Khi Gọi AI",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = state.message,
+                        color = Color.LightGray,
+                        textAlign = TextAlign.Center,
+                        fontSize = 13.sp
+                    )
+                    Button(
+                        onClick = onReset,
+                        colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                    ) {
+                        Text("Quay Lại")
+                    }
+                }
+                is QuizGenerationState.Success -> {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = CorrectGreen,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Đã tạo đề thành công!",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                }
+                else -> {}
+            }
+        }
     }
 }
 
@@ -813,7 +1009,8 @@ fun CameraScanScreen(
                                 focusedBorderColor = PrimaryPurple,
                                 unfocusedBorderColor = Color.Gray
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
                         )
 
                         Row(
@@ -936,78 +1133,10 @@ fun CameraScanScreen(
 
             // PROCESSING DIALOG
             if (generationState !is QuizGenerationState.Idle) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.85f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        when (val state = generationState) {
-                            is QuizGenerationState.Generating -> {
-                                CircularProgressIndicator(color = PrimaryPurple)
-                                Text(
-                                    text = "Gemini AI Đang Phân Tích...",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 18.sp
-                                )
-                                Text(
-                                    text = "Mô hình Gemini 3.5 Flash đang đọc văn bản của tài liệu, nhận dạng các bài tập, câu hỏi và tiến hành trích xuất cấu trúc đề thi thành cơ sở dữ liệu...",
-                                    color = Color.LightGray,
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 12.sp,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                            is QuizGenerationState.Error -> {
-                                Icon(
-                                    imageVector = Icons.Default.Cancel,
-                                    contentDescription = null,
-                                    tint = ErrorRed,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Text(
-                                    text = "Không Thể Tạo Đề Thi",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 18.sp
-                                )
-                                Text(
-                                    text = state.message,
-                                    color = Color.LightGray,
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 13.sp
-                                )
-                                Button(
-                                    onClick = { viewModel.resetGenerationState() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
-                                ) {
-                                    Text("Quay Lại")
-                                }
-                            }
-                            is QuizGenerationState.Success -> {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = CorrectGreen,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Text(
-                                    text = "Trích xuất đề thi thành công!",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 18.sp
-                                )
-                            }
-                            else -> {}
-                        }
-                    }
-                }
+                AIGenerationOverlay(
+                    state = generationState,
+                    onReset = { viewModel.resetGenerationState() }
+                )
             }
         }
     }
@@ -1650,9 +1779,20 @@ fun ManageQuestionsScreen(
 ) {
     val allQuizzes by viewModel.quizzes.collectAsState(initial = emptyList())
     val quizWithQuestions = allQuizzes.find { it.quiz.id == quizId }
+    val generationState by viewModel.generationState.collectAsState()
+    
     var showAddManualDialog by remember { mutableStateOf(false) }
+    var showAIChatDialog by remember { mutableStateOf(false) }
+    var showAICreationSelection by remember { mutableStateOf(false) }
     var editingQuestion by remember { mutableStateOf<QuestionEntity?>(null) }
     var questionToDelete by remember { mutableStateOf<QuestionEntity?>(null) }
+
+    LaunchedEffect(generationState) {
+        if (generationState is QuizGenerationState.Success) {
+            viewModel.resetGenerationState()
+            showAIChatDialog = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1671,13 +1811,16 @@ fun ManageQuestionsScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Add via AI Button
                 FloatingActionButton(
-                    onClick = { onAddViaAI(quizId) },
-                    containerColor = Color(0xFF03A9F4), // Sky Blue for AI
+                    onClick = { showAICreationSelection = true },
+                    containerColor = Color(0xFF03A9F4),
                     contentColor = Color.White
                 ) {
                     Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = "Thêm bằng AI")
                 }
+
+                // Add Manually Button
                 FloatingActionButton(
                     onClick = { showAddManualDialog = true },
                     containerColor = PrimaryPurple,
@@ -1688,151 +1831,114 @@ fun ManageQuestionsScreen(
             }
         }
     ) { padding ->
-        if (quizWithQuestions == null || quizWithQuestions.questions.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Chưa có câu hỏi nào. Hãy thêm câu hỏi mới!")
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(quizWithQuestions.questions) { question ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, BorderColor)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Text(
-                                    text = question.text,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BodyTextColor,
-                                    modifier = Modifier.weight(1f)
-                                )
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (quizWithQuestions == null || quizWithQuestions.questions.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text("Chưa có câu hỏi nào. Hãy thêm câu hỏi mới!")
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(quizWithQuestions.questions) { question ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    editingQuestion = question
+                                    showAddManualDialog = true
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, BorderColor)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(start = 8.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            editingQuestion = question
-                                            showAddManualDialog = true
-                                        },
-                                        modifier = Modifier.size(28.dp)
+                                    Text(
+                                        text = question.text,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BodyTextColor,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(start = 8.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "Sửa",
-                                            tint = PrimaryPurple,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = { questionToDelete = question },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Xóa",
-                                            tint = ErrorRed,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        IconButton(
+                                            onClick = {
+                                                editingQuestion = question
+                                                showAddManualDialog = true
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Sửa",
+                                                tint = PrimaryPurple,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { questionToDelete = question },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Xóa",
+                                                tint = ErrorRed,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            question.options.forEachIndexed { index, option ->
-                                Text(
-                                    text = "${(index + 65).toChar()}. $option",
-                                    color = if (index == question.correctOptionIndex) PrimaryPurple else BodyTextColor,
-                                    fontWeight = if (index == question.correctOptionIndex) FontWeight.Bold else FontWeight.Normal
-                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                question.options.forEachIndexed { index, option ->
+                                    Text(
+                                        text = "${(index + 65).toChar()}. $option",
+                                        color = if (index == question.correctOptionIndex) PrimaryPurple else BodyTextColor,
+                                        fontWeight = if (index == question.correctOptionIndex) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            // PROCESSING OVERLAY
+            if (generationState !is QuizGenerationState.Idle) {
+                AIGenerationOverlay(
+                    state = generationState,
+                    onReset = { viewModel.resetGenerationState() }
+                )
             }
         }
     }
 
     if (showAddManualDialog) {
-        var questionText by remember { mutableStateOf(editingQuestion?.text ?: "") }
-        var options by remember { mutableStateOf(editingQuestion?.options ?: listOf("", "", "", "")) }
-        var correctIndex by remember { mutableIntStateOf(editingQuestion?.correctOptionIndex ?: 0) }
-
-        AlertDialog(
-            onDismissRequest = {
+        AddEditQuestionDialog(
+            editingQuestion = editingQuestion,
+            onDismiss = {
                 showAddManualDialog = false
                 editingQuestion = null
             },
-            title = { Text(if (editingQuestion == null) "Thêm câu hỏi thủ công" else "Sửa câu hỏi") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = questionText,
-                        onValueChange = { questionText = it },
-                        label = { Text("Câu hỏi") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    options.forEachIndexed { index, option ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(
-                                selected = (correctIndex == index),
-                                onClick = { correctIndex = index }
-                            )
-                            OutlinedTextField(
-                                value = option,
-                                onValueChange = { newVal ->
-                                    val newList = options.toMutableList()
-                                    newList[index] = newVal
-                                    options = newList
-                                },
-                                label = { Text("Đáp án ${(index + 65).toChar()}") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
+            onSave = { questionText, options, correctIndex ->
+                if (editingQuestion == null) {
+                    viewModel.addQuestion(quizId, questionText, options, correctIndex)
+                } else {
+                    viewModel.updateQuestion(editingQuestion!!.id, quizId, questionText, options, correctIndex)
                 }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (questionText.isNotBlank() && options.all { it.isNotBlank() }) {
-                        if (editingQuestion == null) {
-                            viewModel.addQuestion(quizId, questionText, options, correctIndex)
-                        } else {
-                            viewModel.updateQuestion(editingQuestion!!.id, quizId, questionText, options, correctIndex)
-                        }
-                        showAddManualDialog = false
-                        editingQuestion = null
-                    }
-                }) {
-                    Text("Lưu")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showAddManualDialog = false
-                    editingQuestion = null
-                }) {
-                    Text("Hủy")
-                }
+                showAddManualDialog = false
+                editingQuestion = null
             }
         )
     }
@@ -1860,5 +1966,211 @@ fun ManageQuestionsScreen(
                 }
             }
         )
+    }
+
+    if (showAIChatDialog) {
+        AIChatGenerationDialog(
+            onDismiss = { showAIChatDialog = false },
+            onGenerate = { prompt ->
+                viewModel.generateQuizFromText(prompt, quizId)
+                showAIChatDialog = false
+            }
+        )
+    }
+
+    if (showAICreationSelection) {
+        AICreationSelectionDialog(
+            onDismiss = { showAICreationSelection = false },
+            onSelectChat = {
+                showAICreationSelection = false
+                showAIChatDialog = true
+            },
+            onSelectCamera = {
+                showAICreationSelection = false
+                onAddViaAI(quizId)
+            },
+            title = "Thêm câu hỏi bằng AI"
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddEditQuestionDialog(
+    editingQuestion: QuestionEntity?,
+    onDismiss: () -> Unit,
+    onSave: (String, List<String>, Int) -> Unit
+) {
+    var questionText by remember { mutableStateOf(editingQuestion?.text ?: "") }
+    val initialOptions = editingQuestion?.options ?: listOf("", "", "", "")
+
+    var option0 by remember { mutableStateOf(initialOptions.getOrNull(0) ?: "") }
+    var option1 by remember { mutableStateOf(initialOptions.getOrNull(1) ?: "") }
+    var option2 by remember { mutableStateOf(initialOptions.getOrNull(2) ?: "") }
+    var option3 by remember { mutableStateOf(initialOptions.getOrNull(3) ?: "") }
+
+    var correctIndex by remember { mutableIntStateOf(editingQuestion?.correctOptionIndex ?: 0) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = if (editingQuestion == null) "Thêm câu hỏi thủ công" else "Sửa câu hỏi",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = BodyTextColor,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(weight = 1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = questionText,
+                        onValueChange = { questionText = it },
+                        label = { Text("Câu hỏi") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                    )
+
+                    val optionsState = listOf(
+                        Triple(option0, { it: String -> option0 = it }, "A"),
+                        Triple(option1, { it: String -> option1 = it }, "B"),
+                        Triple(option2, { it: String -> option2 = it }, "C"),
+                        Triple(option3, { it: String -> option3 = it }, "D")
+                    )
+
+                    optionsState.forEachIndexed { index, (optValue, optChange, letter) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = (correctIndex == index),
+                                onClick = { correctIndex = index }
+                            )
+                            OutlinedTextField(
+                                value = optValue,
+                                onValueChange = optChange,
+                                label = { Text("Đáp án $letter") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Hủy")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val optionsStrs = listOf(option0, option1, option2, option3)
+                            if (questionText.isNotBlank() && optionsStrs.all { it.isNotBlank() }) {
+                                onSave(questionText, optionsStrs, correctIndex)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                    ) {
+                        Text("Lưu")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AIChatGenerationDialog(
+    onDismiss: () -> Unit,
+    onGenerate: (String) -> Unit
+) {
+    var prompt by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = PrimaryPurple)
+                    Text(
+                        text = "Tạo đề bằng AI Chat",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = BodyTextColor
+                    )
+                }
+
+                Text(
+                    text = "Nhập yêu cầu của bạn, AI sẽ tự động tạo bộ câu hỏi trắc nghiệm tương ứng.",
+                    fontSize = 13.sp,
+                    color = SecondaryTextColor
+                )
+
+                OutlinedTextField(
+                    value = prompt,
+                    onValueChange = { prompt = it },
+                    label = { Text("Bạn muốn tạo đề gì?") },
+                    placeholder = { Text("VD: Tạo 5 câu hỏi về Java cơ bản cho người mới học") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Hủy")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (prompt.isNotBlank()) {
+                                onGenerate(prompt)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                    ) {
+                        Text("Tạo Ngay")
+                    }
+                }
+            }
+        }
     }
 }

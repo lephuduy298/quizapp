@@ -15,6 +15,7 @@ import retrofit2.HttpException
 
 interface AIRepository {
     suspend fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = ""): Result<GeneratedQuizJson>
+    suspend fun generateQuizFromText(prompt: String): Result<GeneratedQuizJson>
     suspend fun getExplanationForAnswer(
         questionText: String,
         options: List<String>,
@@ -101,9 +102,6 @@ class DirectGeminiAIRepositoryImpl(
                 )
             ),
             generationConfig = GenerationConfig(
-                responseFormat = ResponseFormat(
-                    text = ResponseFormatText(mimeType = "application/json")
-                ),
                 temperature = 0.4f
             )
         )
@@ -124,6 +122,63 @@ class DirectGeminiAIRepositoryImpl(
                 e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận (Quá tải yêu cầu). Vui lòng đợi một lát rồi thử lại."
                 e is HttpException && e.code() == 503 -> "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau."
                 else -> e.message ?: "Lỗi không xác định khi kết nối với AI."
+            }
+            Result.failure(Exception(friendlyMessage))
+        }
+    }
+
+    override suspend fun generateQuizFromText(prompt: String): Result<GeneratedQuizJson> = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext Result.failure(Exception("Gemini API Key is not configured. Please add GEMINI_API_KEY in the AI Studio Secrets panel."))
+        }
+
+        val fullPrompt = """
+            Based on the following request, generate a complete quiz.
+            User Request: $prompt
+            
+            You MUST return a valid JSON object matching this schema:
+            {
+              "title": "A concise title of the quiz",
+              "topic": "The general subject of the quiz (e.g. Physics, History, N3 Grammar, Chemistry, Programming)",
+              "questions": [
+                {
+                  "text": "The full quiz question text",
+                  "options": ["Option A", "Option B", "Option C", "Option D"],
+                  "correctOptionIndex": 0
+                }
+              ]
+            }
+            Always provide between 2 to 4 options per question.
+            The correctOptionIndex must be a valid 0-based index.
+            Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(
+                Content(parts = listOf(Part(text = fullPrompt)))
+            ),
+            generationConfig = GenerationConfig(
+                temperature = 0.5f
+            )
+        )
+
+        try {
+            val response = retryIO { apiService.generateContent(apiKey, request) }
+            val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                ?: return@withContext Result.failure(Exception("AI did not return any parseable response text."))
+
+            Log.d("AIRepository", "Raw Gemini Text-to-Quiz Response: ${jsonText.trim()}")
+
+            val cleanJson = cleanJsonResponse(jsonText)
+            val generatedQuiz = json.decodeFromString<GeneratedQuizJson>(cleanJson)
+            Result.success(generatedQuiz)
+        } catch (e: Exception) {
+            Log.e("AIRepository", "Error generating quiz from text", e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận. Vui lòng đợi một lát."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau."
+                else -> e.message ?: "Lỗi không xác định khi tạo đề từ văn bản."
             }
             Result.failure(Exception(friendlyMessage))
         }
