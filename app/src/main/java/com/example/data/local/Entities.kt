@@ -9,12 +9,31 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
-@Entity(tableName = "quizzes")
+@Entity(tableName = "folders")
+data class FolderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "quizzes",
+    foreignKeys = [
+        ForeignKey(
+            entity = FolderEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["folderId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index(value = ["folderId"])]
+)
 data class QuizEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
     val topic: String,
     val durationMinutes: Int,
+    val folderId: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 

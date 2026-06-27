@@ -5,8 +5,33 @@ import kotlinx.coroutines.flow.Flow
 
 class QuizRepository(
     private val quizDao: QuizDao,
-    private val quizSessionDao: QuizSessionDao
+    private val quizSessionDao: QuizSessionDao,
+    private val folderDao: FolderDao
 ) {
+    val allFolders: Flow<List<FolderEntity>> = folderDao.getAllFoldersFlow()
+
+    suspend fun insertFolder(folder: FolderEntity): Long {
+        return folderDao.insertFolder(folder)
+    }
+
+    suspend fun updateFolder(folder: FolderEntity) {
+        folderDao.updateFolder(folder)
+    }
+
+    suspend fun deleteFolder(folder: FolderEntity) {
+        folderDao.deleteFolder(folder)
+    }
+
+    suspend fun deleteFolderById(folderId: Long) {
+        folderDao.deleteFolderById(folderId)
+    }
+
+    suspend fun updateQuizFolder(quizId: Long, folderId: Long?) {
+        val quiz = quizDao.getQuizById(quizId)
+        if (quiz != null) {
+            quizDao.updateQuiz(quiz.copy(folderId = folderId))
+        }
+    }
     val allQuizzesWithQuestions: Flow<List<QuizWithQuestions>> = quizDao.getAllQuizzesWithQuestionsFlow()
     val allQuizzes: Flow<List<QuizEntity>> = quizDao.getAllQuizzesFlow()
     val allSessions: Flow<List<QuizSessionEntity>> = quizSessionDao.getAllSessionsFlow()

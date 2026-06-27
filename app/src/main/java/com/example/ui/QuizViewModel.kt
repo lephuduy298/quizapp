@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.QuizApplication
+import com.example.data.local.FolderEntity
 import com.example.data.local.QuestionEntity
 import com.example.data.local.QuizEntity
 import com.example.data.local.QuizSessionEntity
@@ -26,6 +27,10 @@ sealed interface QuizGenerationState {
     data class Error(val message: String) : QuizGenerationState
 }
 
+enum class QuizMode {
+    PRACTICE, EXAM
+}
+
 data class ActiveQuizState(
     val quizWithQuestions: QuizWithQuestions? = null,
     val currentQuestionIndex: Int = 0,
@@ -33,7 +38,8 @@ data class ActiveQuizState(
     val secondsRemaining: Int = 0,
     val isTimerRunning: Boolean = false,
     val isSubmitted: Boolean = false,
-    val sessionEntity: QuizSessionEntity? = null
+    val sessionEntity: QuizSessionEntity? = null,
+    val quizMode: QuizMode = QuizMode.EXAM
 )
 
 class QuizViewModel(
@@ -73,6 +79,34 @@ class QuizViewModel(
     // History logs of submitted sessions
     val sessions = quizRepository.allSessions
 
+    // List of folders
+    val folders = quizRepository.allFolders
+
+    // Folder CRUD operations
+    fun createFolder(name: String) {
+        viewModelScope.launch {
+            quizRepository.insertFolder(FolderEntity(name = name))
+        }
+    }
+
+    fun updateFolder(folderId: Long, name: String) {
+        viewModelScope.launch {
+            quizRepository.updateFolder(FolderEntity(id = folderId, name = name))
+        }
+    }
+
+    fun deleteFolder(folderId: Long) {
+        viewModelScope.launch {
+            quizRepository.deleteFolderById(folderId)
+        }
+    }
+
+    fun moveQuizToFolder(quizId: Long, folderId: Long?) {
+        viewModelScope.launch {
+            quizRepository.updateQuizFolder(quizId, folderId)
+        }
+    }
+
     // AI Generation state
     private val _generationState = MutableStateFlow<QuizGenerationState>(QuizGenerationState.Idle)
     val generationState: StateFlow<QuizGenerationState> = _generationState.asStateFlow()
@@ -97,7 +131,7 @@ class QuizViewModel(
     }
 
     // Capture image & request quiz generation from Gemini
-    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "", targetQuizId: Long? = null) {
+    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "", targetQuizId: Long? = null, folderId: Long? = null) {
         _generationState.value = QuizGenerationState.Generating
         viewModelScope.launch {
             val result = aiRepository.generateQuizFromImage(bitmap, promptAddition)
@@ -120,7 +154,8 @@ class QuizViewModel(
                             val quizEntity = QuizEntity(
                                 title = generated.title,
                                 topic = generated.topic,
-                                durationMinutes = 10 + (generated.questions.size * 2) // Dynamic quiz length
+                                durationMinutes = 10 + (generated.questions.size * 2), // Dynamic quiz length
+                                folderId = folderId
                             )
                             val questionEntities = generated.questions.map { q ->
                                 QuestionEntity(
@@ -146,7 +181,7 @@ class QuizViewModel(
     }
 
     // Generate quiz from text prompt
-    fun generateQuizFromText(prompt: String, targetQuizId: Long? = null) {
+    fun generateQuizFromText(prompt: String, targetQuizId: Long? = null, folderId: Long? = null) {
         _generationState.value = QuizGenerationState.Generating
         viewModelScope.launch {
             val result = aiRepository.generateQuizFromText(prompt)
@@ -169,7 +204,8 @@ class QuizViewModel(
                             val quizEntity = QuizEntity(
                                 title = generated.title,
                                 topic = generated.topic,
-                                durationMinutes = 10 + (generated.questions.size * 2)
+                                durationMinutes = 10 + (generated.questions.size * 2),
+                                folderId = folderId
                             )
                             val questionEntities = generated.questions.map { q ->
                                 QuestionEntity(
@@ -194,9 +230,9 @@ class QuizViewModel(
     }
 
     // Create a mock default or quick manual quiz
-    fun createQuickQuiz(title: String, topic: String, duration: Int, questionsList: List<QuestionEntity>) {
+    fun createQuickQuiz(title: String, topic: String, duration: Int, questionsList: List<QuestionEntity>, folderId: Long? = null) {
         viewModelScope.launch {
-            val quizEntity = QuizEntity(title = title, topic = topic, durationMinutes = duration)
+            val quizEntity = QuizEntity(title = title, topic = topic, durationMinutes = duration, folderId = folderId)
             quizRepository.insertQuizWithQuestions(quizEntity, questionsList)
         }
     }
@@ -261,7 +297,7 @@ class QuizViewModel(
     }
 
     // Initialize an active quiz session
-    fun startQuizSession(quizWithQuestions: QuizWithQuestions) {
+    fun startQuizSession(quizWithQuestions: QuizWithQuestions, mode: QuizMode) {
         countdownTimer?.cancel()
 
         val totalDurationSeconds = quizWithQuestions.quiz.durationMinutes * 60
@@ -269,16 +305,19 @@ class QuizViewModel(
             quizWithQuestions = quizWithQuestions,
             currentQuestionIndex = 0,
             selectedAnswers = emptyMap(),
-            secondsRemaining = totalDurationSeconds,
-            isTimerRunning = true,
+            secondsRemaining = if (mode == QuizMode.EXAM) totalDurationSeconds else 0,
+            isTimerRunning = (mode == QuizMode.EXAM),
             isSubmitted = false,
-            sessionEntity = null
+            sessionEntity = null,
+            quizMode = mode
         )
 
         _explanations.value = emptyMap() // Clear old explanations
         _loadingExplanations.value = emptySet()
 
-        startTimer(totalDurationSeconds)
+        if (mode == QuizMode.EXAM) {
+            startTimer(totalDurationSeconds)
+        }
     }
 
     private fun startTimer(seconds: Int) {

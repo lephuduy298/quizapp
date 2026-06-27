@@ -37,7 +37,19 @@ data class ResponseFormatText(
 )
 
 @Serializable
+data class Schema(
+    val type: String,
+    val description: String? = null,
+    val properties: Map<String, Schema>? = null,
+    val required: List<String>? = null,
+    val items: Schema? = null,
+    val enum: List<String>? = null
+)
+
+@Serializable
 data class GenerationConfig(
+    val responseMimeType: String? = null,
+    val responseSchema: Schema? = null,
     val responseFormat: ResponseFormat? = null,
     val temperature: Float? = null,
     val topP: Float? = null,

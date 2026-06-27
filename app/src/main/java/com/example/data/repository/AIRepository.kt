@@ -30,6 +30,35 @@ class DirectGeminiAIRepositoryImpl(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    private val quizSchema = Schema(
+        type = "OBJECT",
+        properties = mapOf(
+            "title" to Schema(type = "STRING", description = "Tên đề thi trắc nghiệm ngắn gọn"),
+            "topic" to Schema(type = "STRING", description = "Chủ đề tổng quát (ví dụ: Vật lý, Lịch sử...)"),
+            "questions" to Schema(
+                type = "ARRAY",
+                items = Schema(
+                    type = "OBJECT",
+                    properties = mapOf(
+                        "text" to Schema(type = "STRING", description = "Nội dung câu hỏi"),
+                        "options" to Schema(
+                            type = "ARRAY",
+                            items = Schema(type = "STRING"),
+                            description = "Danh sách từ 2 đến 4 phương án lựa chọn"
+                        ),
+                        "correctOptionIndex" to Schema(
+                            type = "INTEGER",
+                            description = "Chỉ mục (0-based) của đáp án đúng trong mảng options"
+                        )
+                    ),
+                    required = listOf("text", "options", "correctOptionIndex")
+                ),
+                description = "Danh sách câu hỏi trắc nghiệm"
+            )
+        ),
+        required = listOf("title", "topic", "questions")
+    )
+
     private suspend fun <T> retryIO(
         times: Int = 3,
         initialDelay: Long = 1000,
@@ -102,6 +131,8 @@ class DirectGeminiAIRepositoryImpl(
                 )
             ),
             generationConfig = GenerationConfig(
+                responseMimeType = "application/json",
+                responseSchema = quizSchema,
                 temperature = 0.4f
             )
         )
@@ -159,6 +190,8 @@ class DirectGeminiAIRepositoryImpl(
                 Content(parts = listOf(Part(text = fullPrompt)))
             ),
             generationConfig = GenerationConfig(
+                responseMimeType = "application/json",
+                responseSchema = quizSchema,
                 temperature = 0.5f
             )
         )
