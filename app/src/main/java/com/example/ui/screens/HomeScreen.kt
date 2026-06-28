@@ -35,6 +35,15 @@ import com.example.ui.QuizGenerationState
 import com.example.ui.QuizViewModel
 import com.example.ui.QuizMode
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
 import com.example.ui.theme.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import java.text.SimpleDateFormat
@@ -55,6 +64,9 @@ fun HomeScreen(
     val folders by viewModel.folders.collectAsState(initial = emptyList())
     val currentUser by viewModel.currentUser.collectAsState()
     val generationState by viewModel.generationState.collectAsState()
+    
+    val streakCount by viewModel.streakCount.collectAsState()
+    var showStreakDialog by remember { mutableStateOf(false) }
     
     var selectedFolderId by remember { mutableStateOf<Long?>(null) }
     val activeFolderId = remember(selectedFolderId) {
@@ -109,12 +121,47 @@ fun HomeScreen(
                         )
                     }
                     Column {
-                        Text(
-                            text = "QuizAI Studio",
-                            fontWeight = FontWeight.Bold,
-                            color = BodyTextColor,
-                            fontSize = 18.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "QuizAI",
+                                fontWeight = FontWeight.Bold,
+                                color = BodyTextColor,
+                                fontSize = 18.sp
+                            )
+                            // Elegant Gradient AI Badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(PrimaryPurple, DarkPurple)
+                                        )
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Text(
+                                        text = "AI",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = "Tài khoản: ${currentUser ?: "Khách"}",
                             fontSize = 12.sp,
@@ -122,20 +169,30 @@ fun HomeScreen(
                         )
                     }
                 }
-                IconButton(
-                    onClick = { viewModel.logout() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(LightPurpleContainer)
-                        .testTag("logout_button")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Đăng xuất",
-                        tint = DarkPurple,
-                        modifier = Modifier.size(20.dp)
+                    StreakFlameWidget(
+                        streakCount = streakCount,
+                        onClick = { showStreakDialog = true }
                     )
+
+                    IconButton(
+                        onClick = { viewModel.logout() },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(LightPurpleContainer)
+                            .testTag("logout_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Đăng xuất",
+                            tint = DarkPurple,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         },
@@ -217,7 +274,7 @@ fun HomeScreen(
                             }
                         }
 
-                        // Token / Status Card
+                        // Token / Status Card -> AI Learning Assistant Card
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -226,23 +283,46 @@ fun HomeScreen(
                                 .padding(16.dp)
                         ) {
                             Column {
-                                Text(
-                                    text = "TRỢ LÝ GEMINI",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DarkPurple,
-                                    letterSpacing = 1.sp
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = DarkPurple,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "TRỢ LÝ HỌC TẬP",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = DarkPurple,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Trợ Lý AI",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = DarkPurple
+                                    )
+                                    // Small green indicator dot for "Active/Online"
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF4CAF50))
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "1.5 Flash 8B",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = DarkPurple
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tối ưu tốc độ",
+                                    text = "Tạo đề & giải nghĩa 24/7",
                                     fontSize = 11.sp,
                                     color = DarkPurple.copy(alpha = 0.8f)
                                 )
@@ -483,6 +563,149 @@ fun HomeScreen(
                     state = generationState,
                     onReset = { viewModel.resetGenerationState() }
                 )
+            }
+        }
+    }
+
+    // Streak Congratulatory Dialog
+    if (showStreakDialog) {
+        Dialog(onDismissRequest = { showStreakDialog = false }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Pulsing Flame in Dialog
+                    val infiniteTransition = rememberInfiniteTransition(label = "DialogFlamePulse")
+                    val scale by infiniteTransition.animateFloat(
+                        initialValue = 0.9f,
+                        targetValue = 1.1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "PulseScale"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            
+                            // Outer Path
+                            val outerPath = Path().apply {
+                                moveTo(w * 0.5f, h * 0.05f)
+                                cubicTo(w * 0.65f, h * 0.2f, w * 0.9f, h * 0.45f, w * 0.85f, h * 0.72f)
+                                cubicTo(w * 0.8f, h * 0.92f, w * 0.65f, h * 0.98f, w * 0.5f, h * 0.98f)
+                                cubicTo(w * 0.35f, h * 0.98f, w * 0.2f, h * 0.92f, w * 0.15f, h * 0.72f)
+                                cubicTo(w * 0.1f, h * 0.45f, w * 0.35f, h * 0.2f, w * 0.5f, h * 0.05f)
+                                close()
+                            }
+                            drawPath(
+                                path = outerPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFFFF3D00), Color(0xFFFF9100))
+                                )
+                            )
+                            
+                            // Middle Path
+                            val midPath = Path().apply {
+                                moveTo(w * 0.5f, h * 0.25f)
+                                cubicTo(w * 0.6f, h * 0.38f, w * 0.78f, h * 0.55f, w * 0.74f, h * 0.75f)
+                                cubicTo(w * 0.7f, h * 0.9f, w * 0.6f, h * 0.94f, w * 0.5f, h * 0.94f)
+                                cubicTo(w * 0.4f, h * 0.94f, w * 0.3f, h * 0.9f, w * 0.26f, h * 0.75f)
+                                cubicTo(w * 0.22f, h * 0.55f, w * 0.4f, h * 0.38f, w * 0.5f, h * 0.25f)
+                                close()
+                            }
+                            drawPath(
+                                path = midPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFFFF9100), Color(0xFFFFEA00))
+                                )
+                            )
+                            
+                            // Inner Path
+                            val innerPath = Path().apply {
+                                moveTo(w * 0.5f, h * 0.48f)
+                                cubicTo(w * 0.56f, h * 0.56f, w * 0.66f, h * 0.68f, w * 0.63f, h * 0.8f)
+                                cubicTo(w * 0.6f, h * 0.88f, w * 0.55f, h * 0.9f, w * 0.5f, h * 0.9f)
+                                cubicTo(w * 0.45f, h * 0.9f, w * 0.40f, h * 0.88f, w * 0.37f, h * 0.8f)
+                                cubicTo(w * 0.34f, h * 0.68f, w * 0.44f, h * 0.56f, w * 0.5f, h * 0.48f)
+                                close()
+                            }
+                            drawPath(
+                                path = innerPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFFFFEA00), Color(0xFFFFFFFF))
+                                )
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Chuỗi Học Tập 🔥",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = BodyTextColor
+                    )
+
+                    Text(
+                        text = if (streakCount > 0) {
+                            "Bạn đã học liên tục $streakCount ngày! Hãy tiếp tục giữ lửa nhé! 🔥"
+                        } else {
+                            "Hãy hoàn thành bài học đầu tiên hôm nay để bắt đầu chuỗi học tập! 🚀"
+                        },
+                        fontSize = 15.sp,
+                        color = BodyTextColor,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 22.sp
+                    )
+
+                    Divider(color = BorderColor, thickness = 1.dp)
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Luật duy trì chuỗi:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = PrimaryPurple
+                        )
+                        BulletPointText("Hoàn thành ít nhất một hoạt động học tập mỗi ngày.")
+                        BulletPointText("Các hoạt động hợp lệ: Thi thử đề thi, Luyện tập trả lời câu hỏi, hoặc hoàn thành ôn tập một bộ Flashcard.")
+                        BulletPointText("Nếu qua một ngày không có hoạt động nào, chuỗi ngày sẽ tự động reset về 0.")
+                    }
+
+                    Button(
+                        onClick = { showStreakDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Tuyệt vời, tiếp tục thôi!", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1235,5 +1458,114 @@ fun CreateEditFolderDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun StreakFlameWidget(
+    streakCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "StreakFlamePulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "PulseScale"
+    )
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFFFFF3E0))
+            .border(1.dp, Color(0xFFFFB74D), RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+
+                // Draw outer layer
+                val outerPath = Path().apply {
+                    moveTo(w * 0.5f, h * 0.05f)
+                    cubicTo(w * 0.65f, h * 0.2f, w * 0.9f, h * 0.45f, w * 0.85f, h * 0.72f)
+                    cubicTo(w * 0.8f, h * 0.92f, w * 0.65f, h * 0.98f, w * 0.5f, h * 0.98f)
+                    cubicTo(w * 0.35f, h * 0.98f, w * 0.2f, h * 0.92f, w * 0.15f, h * 0.72f)
+                    cubicTo(w * 0.1f, h * 0.45f, w * 0.35f, h * 0.2f, w * 0.5f, h * 0.05f)
+                    close()
+                }
+                drawPath(
+                    path = outerPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color(0xFFFF3D00), Color(0xFFFF9100))
+                    )
+                )
+
+                // Draw middle layer
+                val midPath = Path().apply {
+                    moveTo(w * 0.5f, h * 0.25f)
+                    cubicTo(w * 0.6f, h * 0.38f, w * 0.78f, h * 0.55f, w * 0.74f, h * 0.75f)
+                    cubicTo(w * 0.7f, h * 0.9f, w * 0.6f, h * 0.94f, w * 0.5f, h * 0.94f)
+                    cubicTo(w * 0.4f, h * 0.94f, w * 0.3f, h * 0.9f, w * 0.26f, h * 0.75f)
+                    cubicTo(w * 0.22f, h * 0.55f, w * 0.4f, h * 0.38f, w * 0.5f, h * 0.25f)
+                    close()
+                }
+                drawPath(
+                    path = midPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color(0xFFFF9100), Color(0xFFFFEA00))
+                    )
+                )
+
+                // Draw inner layer
+                val innerPath = Path().apply {
+                    moveTo(w * 0.5f, h * 0.48f)
+                    cubicTo(w * 0.56f, h * 0.56f, w * 0.66f, h * 0.68f, w * 0.63f, h * 0.8f)
+                    cubicTo(w * 0.6f, h * 0.88f, w * 0.55f, h * 0.9f, w * 0.5f, h * 0.9f)
+                    cubicTo(w * 0.45f, h * 0.9f, w * 0.40f, h * 0.88f, w * 0.37f, h * 0.8f)
+                    cubicTo(w * 0.34f, h * 0.68f, w * 0.44f, h * 0.56f, w * 0.5f, h * 0.48f)
+                    close()
+                }
+                drawPath(
+                    path = innerPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color(0xFFFFEA00), Color(0xFFFFFFFF))
+                    )
+                )
+            }
+        }
+        Text(
+            text = "$streakCount",
+            fontWeight = FontWeight.Black,
+            fontSize = 14.sp,
+            color = Color(0xFFE65100)
+        )
+    }
+}
+
+@Composable
+fun BulletPointText(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("•", color = PrimaryPurple, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = 12.sp, color = SecondaryTextColor, lineHeight = 18.sp)
     }
 }

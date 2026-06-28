@@ -388,7 +388,7 @@ fun QuizPlayScreen(
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Text(
-                                                text = "Giải Thích Từ AI Trợ Lý",
+                                                text = "Giải thích từ Sư phụ AI",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
                                                 color = DarkPurple
@@ -433,7 +433,7 @@ fun QuizPlayScreen(
                                             color = DarkPurple,
                                             strokeWidth = 2.dp
                                         )
-                                        Text("Gemini đang giải nghĩa...", color = DarkPurple, fontSize = 12.sp)
+                                        Text("Sư phụ AI đang giải nghĩa...", color = DarkPurple, fontSize = 12.sp)
                                     } else {
                                         Icon(
                                             imageVector = Icons.Default.AutoAwesome,

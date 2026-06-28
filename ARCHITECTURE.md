@@ -1,11 +1,11 @@
-# Kiến trúc Dự án: QuizAI Studio
+# Kiến trúc Dự án: QuizAI
 
-Tài liệu này mô tả chi tiết kiến trúc hệ thống, công nghệ sử dụng, cấu trúc dữ liệu và các luồng xử lý chính trong ứng dụng Android **QuizAI Studio**.
+Tài liệu này mô tả chi tiết kiến trúc hệ thống, công nghệ sử dụng, cấu trúc dữ liệu và các luồng xử lý chính trong ứng dụng Android **QuizAI**.
 
 ---
 
 ## 1. Tổng quan Ứng dụng
-**QuizAI Studio** là ứng dụng Android hỗ trợ ôn luyện thi trắc nghiệm thông minh, tích hợp trí tuệ nhân tạo (Generative AI). Ứng dụng cho phép người dùng tự động quét đề thi từ sách vở thông qua camera hoặc tạo đề nhanh chóng từ các chủ đề mong muốn thông qua việc trò chuyện với trợ lý AI. Đồng thời cung cấp tính năng phân tích kết quả bài thi và giải thích chi tiết các câu trả lời sai bằng AI Sư Phụ.
+**QuizAI** là ứng dụng Android hỗ trợ ôn luyện thi trắc nghiệm thông minh, tích hợp trí tuệ nhân tạo (Generative AI). Ứng dụng cho phép người dùng tự động quét đề thi từ sách vở thông qua camera hoặc tạo đề nhanh chóng từ các chủ đề mong muốn thông qua việc trò chuyện với trợ lý AI. Đồng thời cung cấp tính năng phân tích kết quả bài thi và giải thích chi tiết các câu trả lời sai bằng AI Sư Phụ.
 
 ---
 
@@ -198,6 +198,6 @@ app/src/main/
 │           └── Type.kt              # Định nghĩa Font và Kích thước chữ (Typography)
 └── res/
     ├── values/
-    │   └── strings.xml              # File định nghĩa chuỗi tài nguyên (App Name: QuizAI Studio)
+    │   └── strings.xml              # File định nghĩa chuỗi tài nguyên (App Name: QuizAI)
     └── xml/                         # Cấu hình backup dữ liệu
 ```

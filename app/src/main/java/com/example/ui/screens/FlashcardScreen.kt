@@ -103,6 +103,12 @@ fun FlashcardScreen(
         offsetY.snapTo(0f)
     }
 
+    LaunchedEffect(isSessionFinished) {
+        if (isSessionFinished) {
+            viewModel.updateStreak()
+        }
+    }
+
     val currentQuestionIndex = shuffledIndices.getOrNull(currentPointer) ?: 0
     val currentQuestion = questions.getOrNull(currentQuestionIndex) ?: return
 
@@ -126,6 +132,7 @@ fun FlashcardScreen(
                 currentPointer++
             } else {
                 isSessionFinished = true
+                viewModel.updateStreak()
             }
         }
     }

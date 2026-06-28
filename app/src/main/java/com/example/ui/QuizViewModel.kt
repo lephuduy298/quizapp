@@ -52,10 +52,20 @@ class QuizViewModel(
     private val _currentUser = MutableStateFlow<String?>(userManager.getCurrentUser())
     val currentUser: StateFlow<String?> = _currentUser.asStateFlow()
 
+    // Daily streak count state
+    private val _streakCount = MutableStateFlow(userManager.getActiveStreakCount())
+    val streakCount: StateFlow<Int> = _streakCount.asStateFlow()
+
+    fun updateStreak() {
+        userManager.updateStreak()
+        _streakCount.value = userManager.getActiveStreakCount()
+    }
+
     fun login(username: String, password: String): Boolean {
         val success = userManager.login(username, password)
         if (success) {
             _currentUser.value = userManager.getCurrentUser()
+            _streakCount.value = userManager.getActiveStreakCount()
         }
         return success
     }
@@ -67,6 +77,7 @@ class QuizViewModel(
     fun logout() {
         userManager.logout()
         _currentUser.value = null
+        _streakCount.value = userManager.getActiveStreakCount()
     }
 
     fun isUserLoggedIn(): Boolean {
@@ -350,6 +361,11 @@ class QuizViewModel(
         _activeQuiz.value = currentState.copy(
             selectedAnswers = updatedAnswers
         )
+
+        // Luyện tập xong 1 câu -> update streak
+        if (currentState.quizMode == QuizMode.PRACTICE) {
+            updateStreak()
+        }
     }
 
     // Move next or previous question
@@ -404,6 +420,7 @@ class QuizViewModel(
                 isTimerRunning = false,
                 sessionEntity = session.copy(id = sessionId)
             )
+            updateStreak()
         }
     }
 

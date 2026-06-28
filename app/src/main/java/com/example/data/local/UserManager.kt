@@ -73,4 +73,105 @@ class UserManager private constructor(context: Context) {
     fun isUserLoggedIn(): Boolean {
         return getCurrentUser() != null
     }
+
+    /**
+     * Gets the current streak count for the authenticated user.
+     */
+    fun getStreakCount(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("streak_count_$user", 0)
+    }
+
+    /**
+     * Gets the current active streak count. If the streak is broken (more than 1 day of inactivity), returns 0.
+     */
+    fun getActiveStreakCount(): Int {
+        val user = getCurrentUser() ?: "guest"
+        val lastDate = getLastActiveDate() ?: return 0
+        val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        if (lastDate == currentDate) {
+            return getStreakCount()
+        }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        try {
+            val d1 = sdf.parse(lastDate)
+            val d2 = sdf.parse(currentDate)
+            if (d1 != null && d2 != null) {
+                val diffTime = d2.time - d1.time
+                val diffDays = diffTime / (1000 * 60 * 60 * 24)
+                if (diffDays <= 1L) {
+                    return getStreakCount()
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return 0
+    }
+
+    /**
+     * Gets the last active date (yyyy-MM-dd) string.
+     */
+    fun getLastActiveDate(): String? {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getString("streak_last_date_$user", null)
+    }
+
+    /**
+     * Updates/advances the streak if active today.
+     * Returns true if the streak count was updated.
+     */
+    fun updateStreak(): Boolean {
+        val user = getCurrentUser() ?: "guest"
+        val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val lastDate = getLastActiveDate()
+        val currentStreak = getStreakCount()
+
+        if (lastDate == null) {
+            // First day active ever
+            prefs.edit()
+                .putInt("streak_count_$user", 1)
+                .putString("streak_last_date_$user", currentDate)
+                .apply()
+            return true
+        }
+
+        if (lastDate == currentDate) {
+            // Already active today, no change
+            return false
+        }
+
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        try {
+            val d1 = sdf.parse(lastDate)
+            val d2 = sdf.parse(currentDate)
+            if (d1 != null && d2 != null) {
+                val diffTime = d2.time - d1.time
+                val diffDays = diffTime / (1000 * 60 * 60 * 24)
+                if (diffDays == 1L) {
+                    // Incremented streak
+                    prefs.edit()
+                        .putInt("streak_count_$user", currentStreak + 1)
+                        .putString("streak_last_date_$user", currentDate)
+                        .apply()
+                    return true
+                } else if (diffDays > 1L) {
+                    // Streak broken, reset to 1
+                    prefs.edit()
+                        .putInt("streak_count_$user", 1)
+                        .putString("streak_last_date_$user", currentDate)
+                        .apply()
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            // Parsing error, fallback reset
+            prefs.edit()
+                .putInt("streak_count_$user", 1)
+                .putString("streak_last_date_$user", currentDate)
+                .apply()
+            return true
+        }
+        return false
+    }
 }

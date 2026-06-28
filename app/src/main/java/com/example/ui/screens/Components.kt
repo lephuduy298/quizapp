@@ -125,13 +125,13 @@ fun AIGenerationOverlay(
                 is QuizGenerationState.Generating -> {
                     CircularProgressIndicator(color = PrimaryPurple)
                     Text(
-                        text = "AI Đang Soạn Đề...",
+                        text = "Trợ lý AI đang tạo đề...",
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         fontSize = 18.sp
                     )
                     Text(
-                        text = "Mô hình Gemini đang xử lý yêu cầu của bạn, thiết kế các câu hỏi và đáp án tối ưu nhất...",
+                        text = "Trợ lý AI đang xử lý yêu cầu của bạn, thiết kế các câu hỏi và đáp án tối ưu nhất...",
                         color = Color.LightGray,
                         textAlign = TextAlign.Center,
                         fontSize = 12.sp,

@@ -93,7 +93,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "QuizAI Studio",
+                text = "QuizAI",
                 style = MaterialTheme.typography.displaySmall.copy(
                     fontWeight = FontWeight.ExtraBold,
                     color = DarkPurple,
