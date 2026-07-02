@@ -174,4 +174,68 @@ class UserManager private constructor(context: Context) {
         }
         return false
     }
+
+    /**
+     * Set reminder enabled or disabled for current user.
+     */
+    fun setReminderEnabled(enabled: Boolean) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit().putBoolean("reminder_enabled_$user", enabled).apply()
+    }
+
+    /**
+     * Check if reminder is enabled for current user.
+     */
+    fun isReminderEnabled(): Boolean {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getBoolean("reminder_enabled_$user", false)
+    }
+
+    /**
+     * Save reminder time for current user.
+     */
+    fun setReminderTime(hour: Int, minute: Int) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit()
+            .putInt("reminder_hour_$user", hour)
+            .putInt("reminder_minute_$user", minute)
+            .apply()
+    }
+
+    /**
+     * Get reminder hour for current user.
+     */
+    fun getReminderHour(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("reminder_hour_$user", 20) // default 8 PM
+    }
+
+    /**
+     * Get reminder minute for current user.
+     */
+    fun getReminderMinute(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("reminder_minute_$user", 0) // default 00
+    }
+
+    /**
+     * Save reminder days of the week for current user.
+     * Days are stored as a comma-separated string of Calendar day-of-week integers.
+     */
+    fun setReminderDays(days: Set<Int>) {
+        val user = getCurrentUser() ?: "guest"
+        val daysStr = days.joinToString(",")
+        prefs.edit().putString("reminder_days_$user", daysStr).apply()
+    }
+
+    /**
+     * Get reminder days of the week for current user.
+     * Defaults to all days of the week (1 to 7).
+     */
+    fun getReminderDays(): Set<Int> {
+        val user = getCurrentUser() ?: "guest"
+        val daysStr = prefs.getString("reminder_days_$user", "1,2,3,4,5,6,7") ?: "1,2,3,4,5,6,7"
+        if (daysStr.isEmpty()) return emptySet()
+        return daysStr.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+    }
 }

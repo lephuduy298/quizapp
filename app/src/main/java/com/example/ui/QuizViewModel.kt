@@ -56,6 +56,35 @@ class QuizViewModel(
     private val _streakCount = MutableStateFlow(userManager.getActiveStreakCount())
     val streakCount: StateFlow<Int> = _streakCount.asStateFlow()
 
+    // Daily study reminder settings
+    private val _reminderEnabled = MutableStateFlow(userManager.isReminderEnabled())
+    val reminderEnabled: StateFlow<Boolean> = _reminderEnabled.asStateFlow()
+
+    private val _reminderHour = MutableStateFlow(userManager.getReminderHour())
+    val reminderHour: StateFlow<Int> = _reminderHour.asStateFlow()
+
+    private val _reminderMinute = MutableStateFlow(userManager.getReminderMinute())
+    val reminderMinute: StateFlow<Int> = _reminderMinute.asStateFlow()
+
+    private val _reminderDays = MutableStateFlow(userManager.getReminderDays())
+    val reminderDays: StateFlow<Set<Int>> = _reminderDays.asStateFlow()
+
+    fun updateReminderSettings(enabled: Boolean, hour: Int, minute: Int, days: Set<Int>, context: android.content.Context) {
+        userManager.setReminderEnabled(enabled)
+        userManager.setReminderTime(hour, minute)
+        userManager.setReminderDays(days)
+        _reminderEnabled.value = enabled
+        _reminderHour.value = hour
+        _reminderMinute.value = minute
+        _reminderDays.value = days
+
+        if (enabled) {
+            com.example.reminder.StudyReminderHelper.scheduleReminder(context, hour, minute)
+        } else {
+            com.example.reminder.StudyReminderHelper.cancelReminder(context)
+        }
+    }
+
     fun updateStreak() {
         userManager.updateStreak()
         _streakCount.value = userManager.getActiveStreakCount()
@@ -66,6 +95,10 @@ class QuizViewModel(
         if (success) {
             _currentUser.value = userManager.getCurrentUser()
             _streakCount.value = userManager.getActiveStreakCount()
+            _reminderEnabled.value = userManager.isReminderEnabled()
+            _reminderHour.value = userManager.getReminderHour()
+            _reminderMinute.value = userManager.getReminderMinute()
+            _reminderDays.value = userManager.getReminderDays()
         }
         return success
     }
@@ -78,6 +111,10 @@ class QuizViewModel(
         userManager.logout()
         _currentUser.value = null
         _streakCount.value = userManager.getActiveStreakCount()
+        _reminderEnabled.value = false
+        _reminderHour.value = 20
+        _reminderMinute.value = 0
+        _reminderDays.value = setOf(1, 2, 3, 4, 5, 6, 7)
     }
 
     fun isUserLoggedIn(): Boolean {
