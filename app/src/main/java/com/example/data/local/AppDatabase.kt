@@ -7,12 +7,13 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [QuizEntity::class, QuestionEntity::class, QuizSessionEntity::class],
-    version = 1,
+    entities = [FolderEntity::class, QuizEntity::class, QuestionEntity::class, QuizSessionEntity::class],
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun folderDao(): FolderDao
     abstract fun quizDao(): QuizDao
     abstract fun quizSessionDao(): QuizSessionDao
 

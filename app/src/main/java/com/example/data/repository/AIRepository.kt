@@ -6,12 +6,16 @@ import android.util.Log
 import com.example.BuildConfig
 import com.example.data.remote.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import retrofit2.HttpException
 
 interface AIRepository {
     suspend fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = ""): Result<GeneratedQuizJson>
+    suspend fun generateQuizFromText(prompt: String): Result<GeneratedQuizJson>
     suspend fun getExplanationForAnswer(
         questionText: String,
         options: List<String>,
@@ -25,6 +29,61 @@ class DirectGeminiAIRepositoryImpl(
 ) : AIRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    private val quizSchema = Schema(
+        type = "OBJECT",
+        properties = mapOf(
+            "title" to Schema(type = "STRING", description = "Tên đề thi trắc nghiệm ngắn gọn"),
+            "topic" to Schema(type = "STRING", description = "Chủ đề tổng quát (ví dụ: Vật lý, Lịch sử...)"),
+            "questions" to Schema(
+                type = "ARRAY",
+                items = Schema(
+                    type = "OBJECT",
+                    properties = mapOf(
+                        "text" to Schema(type = "STRING", description = "Nội dung câu hỏi"),
+                        "options" to Schema(
+                            type = "ARRAY",
+                            items = Schema(type = "STRING"),
+                            description = "Danh sách từ 2 đến 4 phương án lựa chọn"
+                        ),
+                        "correctOptionIndex" to Schema(
+                            type = "INTEGER",
+                            description = "Chỉ mục (0-based) của đáp án đúng trong mảng options"
+                        )
+                    ),
+                    required = listOf("text", "options", "correctOptionIndex")
+                ),
+                description = "Danh sách câu hỏi trắc nghiệm"
+            )
+        ),
+        required = listOf("title", "topic", "questions")
+    )
+
+    private suspend fun <T> retryIO(
+        times: Int = 3,
+        initialDelay: Long = 1000,
+        maxDelay: Long = 4000,
+        factor: Double = 2.0,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = initialDelay
+        repeat(times - 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                val isRetryable = when (e) {
+                    is HttpException -> e.code() == 429 || e.code() == 503 || e.code() >= 500
+                    is IOException -> true
+                    else -> false
+                }
+                if (!isRetryable) throw e
+                Log.w("AIRepository", "Attempt ${attempt + 1} failed: ${e.message}. Retrying in ${currentDelay}ms...")
+            }
+            delay(currentDelay)
+            currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
+        }
+        return block() // Last attempt
+    }
 
     override suspend fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String): Result<GeneratedQuizJson> = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
@@ -42,7 +101,7 @@ class DirectGeminiAIRepositoryImpl(
         }
 
         val prompt = """
-            Analysis the text or exercises in the attached image and generate a complete quiz.
+            Analyze the text or exercises in the attached image and generate a complete quiz containing ALL questions present in the image.
             You MUST return a valid JSON object matching this schema:
             {
               "title": "A concise title of the quiz",
@@ -55,10 +114,14 @@ class DirectGeminiAIRepositoryImpl(
                 }
               ]
             }
-            Always provide between 2 to 4 options per question.
-            Provide at least 3-5 comprehensive questions from the text.
-            The correctOptionIndex must be a valid 0-based index.
-            Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+            Guidelines for extraction:
+            1. Extract ALL questions visible in the image. Do not limit, cap, or pad the list of questions. If there are 10 questions, extract all 10. If there are only 2, extract 2.
+            2. Each numbered index (e.g., "Câu 1", "Question 2", "1.", "2)") in the image indicates a new question.
+            3. The choices labeled with A, B, C, D (or A., B., C., D. or resembling format) are the options for that question. Do not include the labels "A.", "B." etc. in the option text itself.
+            4. Dynamically evaluate the question and determine which option is the correct answer, setting correctOptionIndex to the correct 0-based index (0 for option A, 1 for B, etc.).
+            5. Preserve the language of the questions as they appear in the image (e.g., if the image is in Vietnamese, the extracted questions and options must be in Vietnamese).
+            6. Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+            
             Additional instructions: $promptAddition
         """.trimIndent()
 
@@ -72,15 +135,14 @@ class DirectGeminiAIRepositoryImpl(
                 )
             ),
             generationConfig = GenerationConfig(
-                responseFormat = ResponseFormat(
-                    text = ResponseFormatText(mimeType = "application/json")
-                ),
+                responseMimeType = "application/json",
+                responseSchema = quizSchema,
                 temperature = 0.4f
             )
         )
 
         try {
-            val response = apiService.generateContent(apiKey, request)
+            val response = retryIO { apiService.generateContent(apiKey, request) }
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: return@withContext Result.failure(Exception("AI did not return any parseable response text."))
 
@@ -91,7 +153,71 @@ class DirectGeminiAIRepositoryImpl(
             Result.success(generatedQuiz)
         } catch (e: Exception) {
             Log.e("AIRepository", "Error generating quiz from image", e)
-            Result.failure(e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận (Quá tải yêu cầu). Vui lòng đợi một lát rồi thử lại."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau."
+                else -> e.message ?: "Lỗi không xác định khi kết nối với AI."
+            }
+            Result.failure(Exception(friendlyMessage))
+        }
+    }
+
+    override suspend fun generateQuizFromText(prompt: String): Result<GeneratedQuizJson> = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext Result.failure(Exception("Gemini API Key is not configured. Please add GEMINI_API_KEY in the AI Studio Secrets panel."))
+        }
+
+        val fullPrompt = """
+            Based on the following request, generate a complete quiz.
+            User Request: $prompt
+            
+            You MUST return a valid JSON object matching this schema:
+            {
+              "title": "A concise title of the quiz",
+              "topic": "The general subject of the quiz (e.g. Physics, History, N3 Grammar, Chemistry, Programming)",
+              "questions": [
+                {
+                  "text": "The full quiz question text",
+                  "options": ["Option A", "Option B", "Option C", "Option D"],
+                  "correctOptionIndex": 0
+                }
+              ]
+            }
+            Always provide between 2 to 4 options per question.
+            The correctOptionIndex must be a valid 0-based index.
+            Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(
+                Content(parts = listOf(Part(text = fullPrompt)))
+            ),
+            generationConfig = GenerationConfig(
+                responseMimeType = "application/json",
+                responseSchema = quizSchema,
+                temperature = 0.5f
+            )
+        )
+
+        try {
+            val response = retryIO { apiService.generateContent(apiKey, request) }
+            val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                ?: return@withContext Result.failure(Exception("AI did not return any parseable response text."))
+
+            Log.d("AIRepository", "Raw Gemini Text-to-Quiz Response: ${jsonText.trim()}")
+
+            val cleanJson = cleanJsonResponse(jsonText)
+            val generatedQuiz = json.decodeFromString<GeneratedQuizJson>(cleanJson)
+            Result.success(generatedQuiz)
+        } catch (e: Exception) {
+            Log.e("AIRepository", "Error generating quiz from text", e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận. Vui lòng đợi một lát."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau."
+                else -> e.message ?: "Lỗi không xác định khi tạo đề từ văn bản."
+            }
+            Result.failure(Exception(friendlyMessage))
         }
     }
 
@@ -125,13 +251,18 @@ class DirectGeminiAIRepositoryImpl(
         )
 
         try {
-            val response = apiService.generateContent(apiKey, request)
+            val response = retryIO { apiService.generateContent(apiKey, request) }
             val explanation = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: return@withContext Result.failure(Exception("AI did not return any explanation."))
             Result.success(explanation)
         } catch (e: Exception) {
             Log.e("AIRepository", "Error explaining quiz answer", e)
-            Result.failure(e)
+            val friendlyMessage = when {
+                e is HttpException && e.code() == 429 -> "Máy chủ AI đang bận. Vui lòng đợi một lát."
+                e is HttpException && e.code() == 503 -> "Dịch vụ AI đang bảo trì. Vui lòng thử lại sau."
+                else -> e.message ?: "Không thể lấy giải thích từ AI."
+            }
+            Result.failure(Exception(friendlyMessage))
         }
     }
 

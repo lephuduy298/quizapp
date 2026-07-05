@@ -22,7 +22,8 @@ class AppContainerImpl(private val context: Context) : AppContainer {
     override val quizRepository: QuizRepository by lazy {
         QuizRepository(
             quizDao = database.quizDao(),
-            quizSessionDao = database.quizSessionDao()
+            quizSessionDao = database.quizSessionDao(),
+            folderDao = database.folderDao()
         )
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -48,9 +49,9 @@ fun AuthScreen(
     val focusManager = LocalFocusManager.current
 
     var isRegisterMode by remember { mutableStateOf(false) }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf(TextFieldValue("")) }
+    var password by remember { mutableStateOf(TextFieldValue("")) }
+    var confirmPassword by remember { mutableStateOf(TextFieldValue("")) }
 
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
@@ -93,7 +94,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "QuizAI Studio",
+                text = "QuizAI",
                 style = MaterialTheme.typography.displaySmall.copy(
                     fontWeight = FontWeight.ExtraBold,
                     color = DarkPurple,
@@ -254,9 +255,9 @@ fun AuthScreen(
                                     performSubmit(
                                         viewModel = viewModel,
                                         isRegisterMode = isRegisterMode,
-                                        username = username,
-                                        password = password,
-                                        confirmPassword = confirmPassword,
+                                        username = username.text,
+                                        password = password.text,
+                                        confirmPassword = confirmPassword.text,
                                         setErrorMessage = { errorMessage = it },
                                         setSuccessMessage = { successMessage = it },
                                         toggleMode = { isRegisterMode = false },
@@ -309,9 +310,9 @@ fun AuthScreen(
                                     performSubmit(
                                         viewModel = viewModel,
                                         isRegisterMode = isRegisterMode,
-                                        username = username,
-                                        password = password,
-                                        confirmPassword = confirmPassword,
+                                        username = username.text,
+                                        password = password.text,
+                                        confirmPassword = confirmPassword.text,
                                         setErrorMessage = { errorMessage = it },
                                         setSuccessMessage = { successMessage = it },
                                         toggleMode = { isRegisterMode = false },
@@ -331,9 +332,9 @@ fun AuthScreen(
                             performSubmit(
                                 viewModel = viewModel,
                                 isRegisterMode = isRegisterMode,
-                                username = username,
-                                password = password,
-                                confirmPassword = confirmPassword,
+                                username = username.text,
+                                password = password.text,
+                                confirmPassword = confirmPassword.text,
                                 setErrorMessage = { errorMessage = it },
                                 setSuccessMessage = { successMessage = it },
                                 toggleMode = { isRegisterMode = false },
@@ -383,8 +384,8 @@ fun AuthScreen(
                             isRegisterMode = !isRegisterMode
                             errorMessage = null
                             successMessage = null
-                            password = ""
-                            confirmPassword = ""
+                            password = TextFieldValue("")
+                            confirmPassword = TextFieldValue("")
                         },
                         modifier = Modifier
                             .fillMaxWidth()

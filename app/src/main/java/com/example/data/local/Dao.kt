@@ -53,6 +53,9 @@ interface QuizDao {
     suspend fun updateQuestion(question: QuestionEntity)
 
     @Delete
+    suspend fun deleteQuestion(question: QuestionEntity)
+
+    @Delete
     suspend fun deleteQuiz(quiz: QuizEntity)
 
     @Query("DELETE FROM quizzes WHERE id = :quizId")
@@ -75,4 +78,22 @@ interface QuizSessionDao {
 
     @Query("DELETE FROM quiz_sessions WHERE id = :sessionId")
     suspend fun deleteSessionById(sessionId: Long)
+}
+
+@Dao
+interface FolderDao {
+    @Query("SELECT * FROM folders ORDER BY name ASC")
+    fun getAllFoldersFlow(): Flow<List<FolderEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFolder(folder: FolderEntity): Long
+
+    @Update
+    suspend fun updateFolder(folder: FolderEntity)
+
+    @Delete
+    suspend fun deleteFolder(folder: FolderEntity)
+
+    @Query("DELETE FROM folders WHERE id = :folderId")
+    suspend fun deleteFolderById(folderId: Long)
 }

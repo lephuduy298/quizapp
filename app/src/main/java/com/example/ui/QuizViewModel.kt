@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.QuizApplication
+import com.example.data.local.FolderEntity
 import com.example.data.local.QuestionEntity
 import com.example.data.local.QuizEntity
 import com.example.data.local.QuizSessionEntity
@@ -26,6 +27,10 @@ sealed interface QuizGenerationState {
     data class Error(val message: String) : QuizGenerationState
 }
 
+enum class QuizMode {
+    PRACTICE, EXAM
+}
+
 data class ActiveQuizState(
     val quizWithQuestions: QuizWithQuestions? = null,
     val currentQuestionIndex: Int = 0,
@@ -33,7 +38,8 @@ data class ActiveQuizState(
     val secondsRemaining: Int = 0,
     val isTimerRunning: Boolean = false,
     val isSubmitted: Boolean = false,
-    val sessionEntity: QuizSessionEntity? = null
+    val sessionEntity: QuizSessionEntity? = null,
+    val quizMode: QuizMode = QuizMode.EXAM
 )
 
 class QuizViewModel(
@@ -42,14 +48,120 @@ class QuizViewModel(
     private val userManager: UserManager
 ) : ViewModel() {
 
+
     // User authentication state
     private val _currentUser = MutableStateFlow<String?>(userManager.getCurrentUser())
     val currentUser: StateFlow<String?> = _currentUser.asStateFlow()
 
+    // Daily streak count state
+    private val _streakCount = MutableStateFlow(userManager.getActiveStreakCount())
+    val streakCount: StateFlow<Int> = _streakCount.asStateFlow()
+
+    // Active dates set state
+    private val _activeDates = MutableStateFlow(userManager.getActiveDates())
+    val activeDates: StateFlow<Set<String>> = _activeDates.asStateFlow()
+
+    // Streak freezes remaining state
+    private val _streakFreezes = MutableStateFlow(userManager.getStreakFreezes())
+    val streakFreezes: StateFlow<Int> = _streakFreezes.asStateFlow()
+
+    // Control flag for displaying celebration popup (non-null holds streak count)
+    private val _showStreakCelebration = MutableStateFlow<Int?>(null)
+    val showStreakCelebration: StateFlow<Int?> = _showStreakCelebration.asStateFlow()
+
+    fun dismissStreakCelebration() {
+        _showStreakCelebration.value = null
+    }
+
+    fun refillStreakFreezes() {
+        userManager.refillStreakFreezes()
+        _streakFreezes.value = userManager.getStreakFreezes()
+    }
+
+    // Daily study reminder settings
+    private val _reminderEnabled = MutableStateFlow(userManager.isReminderEnabled())
+    val reminderEnabled: StateFlow<Boolean> = _reminderEnabled.asStateFlow()
+
+    private val _reminderHour = MutableStateFlow(userManager.getReminderHour())
+    val reminderHour: StateFlow<Int> = _reminderHour.asStateFlow()
+
+    private val _reminderMinute = MutableStateFlow(userManager.getReminderMinute())
+    val reminderMinute: StateFlow<Int> = _reminderMinute.asStateFlow()
+
+    private val _reminderDays = MutableStateFlow(userManager.getReminderDays())
+    val reminderDays: StateFlow<Set<Int>> = _reminderDays.asStateFlow()
+
+    init {
+        userManager.checkAndApplyStreakFreezes()
+        
+        // Auto-show welcome streak celebration popup on app start if they have an active streak today
+        val user = userManager.getCurrentUser()
+        if (user != null) {
+            val streak = userManager.getActiveStreakCount()
+            if (streak > 0) {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val lastShown = userManager.getLastWelcomeShownDate()
+                if (lastShown != todayStr) {
+                    _showStreakCelebration.value = streak
+                    userManager.setLastWelcomeShownDate(todayStr)
+                }
+            }
+        }
+    }
+
+    fun updateReminderSettings(enabled: Boolean, hour: Int, minute: Int, days: Set<Int>, context: android.content.Context) {
+        userManager.setReminderEnabled(enabled)
+        userManager.setReminderTime(hour, minute)
+        userManager.setReminderDays(days)
+        _reminderEnabled.value = enabled
+        _reminderHour.value = hour
+        _reminderMinute.value = minute
+        _reminderDays.value = days
+
+        if (enabled) {
+            com.example.reminder.StudyReminderHelper.scheduleReminder(context, hour, minute)
+        } else {
+            com.example.reminder.StudyReminderHelper.cancelReminder(context)
+        }
+    }
+
+    fun updateStreak() {
+        val wasUpdated = userManager.updateStreak()
+        _streakCount.value = userManager.getActiveStreakCount()
+        _activeDates.value = userManager.getActiveDates()
+        _streakFreezes.value = userManager.getStreakFreezes()
+        
+        if (wasUpdated) {
+            _showStreakCelebration.value = userManager.getActiveStreakCount()
+            // Mark as shown today to prevent triggering again on app restart today
+            val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            userManager.setLastWelcomeShownDate(todayStr)
+        }
+    }
+
     fun login(username: String, password: String): Boolean {
         val success = userManager.login(username, password)
         if (success) {
+            userManager.checkAndApplyStreakFreezes()
             _currentUser.value = userManager.getCurrentUser()
+            _streakCount.value = userManager.getActiveStreakCount()
+            _reminderEnabled.value = userManager.isReminderEnabled()
+            _reminderHour.value = userManager.getReminderHour()
+            _reminderMinute.value = userManager.getReminderMinute()
+            _reminderDays.value = userManager.getReminderDays()
+            _streakFreezes.value = userManager.getStreakFreezes()
+            _activeDates.value = userManager.getActiveDates()
+            
+            // Auto-show welcome streak celebration popup on login if active today
+            val streak = userManager.getActiveStreakCount()
+            if (streak > 0) {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val lastShown = userManager.getLastWelcomeShownDate()
+                if (lastShown != todayStr) {
+                    _showStreakCelebration.value = streak
+                    userManager.setLastWelcomeShownDate(todayStr)
+                }
+            }
         }
         return success
     }
@@ -61,6 +173,14 @@ class QuizViewModel(
     fun logout() {
         userManager.logout()
         _currentUser.value = null
+        _streakCount.value = userManager.getActiveStreakCount()
+        _reminderEnabled.value = false
+        _reminderHour.value = 20
+        _reminderMinute.value = 0
+        _reminderDays.value = setOf(1, 2, 3, 4, 5, 6, 7)
+        _streakFreezes.value = 2
+        _activeDates.value = emptySet()
+        _showStreakCelebration.value = null
     }
 
     fun isUserLoggedIn(): Boolean {
@@ -72,6 +192,34 @@ class QuizViewModel(
 
     // History logs of submitted sessions
     val sessions = quizRepository.allSessions
+
+    // List of folders
+    val folders = quizRepository.allFolders
+
+    // Folder CRUD operations
+    fun createFolder(name: String) {
+        viewModelScope.launch {
+            quizRepository.insertFolder(FolderEntity(name = name))
+        }
+    }
+
+    fun updateFolder(folderId: Long, name: String) {
+        viewModelScope.launch {
+            quizRepository.updateFolder(FolderEntity(id = folderId, name = name))
+        }
+    }
+
+    fun deleteFolder(folderId: Long) {
+        viewModelScope.launch {
+            quizRepository.deleteFolderById(folderId)
+        }
+    }
+
+    fun moveQuizToFolder(quizId: Long, folderId: Long?) {
+        viewModelScope.launch {
+            quizRepository.updateQuizFolder(quizId, folderId)
+        }
+    }
 
     // AI Generation state
     private val _generationState = MutableStateFlow<QuizGenerationState>(QuizGenerationState.Idle)
@@ -97,7 +245,7 @@ class QuizViewModel(
     }
 
     // Capture image & request quiz generation from Gemini
-    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "", targetQuizId: Long? = null) {
+    fun generateQuizFromImage(bitmap: Bitmap, promptAddition: String = "", targetQuizId: Long? = null, folderId: Long? = null) {
         _generationState.value = QuizGenerationState.Generating
         viewModelScope.launch {
             val result = aiRepository.generateQuizFromImage(bitmap, promptAddition)
@@ -120,7 +268,8 @@ class QuizViewModel(
                             val quizEntity = QuizEntity(
                                 title = generated.title,
                                 topic = generated.topic,
-                                durationMinutes = 10 + (generated.questions.size * 2) // Dynamic quiz length
+                                durationMinutes = 10 + (generated.questions.size * 2), // Dynamic quiz length
+                                folderId = folderId
                             )
                             val questionEntities = generated.questions.map { q ->
                                 QuestionEntity(
@@ -145,10 +294,59 @@ class QuizViewModel(
         }
     }
 
-    // Create a mock default or quick manual quiz
-    fun createQuickQuiz(title: String, topic: String, duration: Int, questionsList: List<QuestionEntity>) {
+    // Generate quiz from text prompt
+    fun generateQuizFromText(prompt: String, targetQuizId: Long? = null, folderId: Long? = null) {
+        _generationState.value = QuizGenerationState.Generating
         viewModelScope.launch {
-            val quizEntity = QuizEntity(title = title, topic = topic, durationMinutes = duration)
+            val result = aiRepository.generateQuizFromText(prompt)
+            result.fold(
+                onSuccess = { generated ->
+                    try {
+                        if (targetQuizId != null) {
+                            // Add questions to existing quiz
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = targetQuizId,
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
+                            quizRepository.addQuestions(questionEntities)
+                        } else {
+                            // Persist NEW quiz to Database
+                            val quizEntity = QuizEntity(
+                                title = generated.title,
+                                topic = generated.topic,
+                                durationMinutes = 10 + (generated.questions.size * 2),
+                                folderId = folderId
+                            )
+                            val questionEntities = generated.questions.map { q ->
+                                QuestionEntity(
+                                    quizId = 0,
+                                    text = q.text,
+                                    options = q.options,
+                                    correctOptionIndex = q.correctOptionIndex
+                                )
+                            }
+                            quizRepository.insertQuizWithQuestions(quizEntity, questionEntities)
+                        }
+                        _generationState.value = QuizGenerationState.Success
+                    } catch (e: Exception) {
+                        _generationState.value = QuizGenerationState.Error("DB error: " + (e.message ?: "Failed to save quiz."))
+                    }
+                },
+                onFailure = { error ->
+                    _generationState.value = QuizGenerationState.Error(error.message ?: "Unknown error while calling AI.")
+                }
+            )
+        }
+    }
+
+    // Create a mock default or quick manual quiz
+    fun createQuickQuiz(title: String, topic: String, duration: Int, questionsList: List<QuestionEntity>, folderId: Long? = null) {
+        viewModelScope.launch {
+            val quizEntity = QuizEntity(title = title, topic = topic, durationMinutes = duration, folderId = folderId)
             quizRepository.insertQuizWithQuestions(quizEntity, questionsList)
         }
     }
@@ -178,14 +376,18 @@ class QuizViewModel(
         }
     }
 
+    fun deleteQuestion(question: QuestionEntity) {
+        viewModelScope.launch {
+            quizRepository.deleteQuestion(question)
+        }
+    }
+
     // Delete a particular quiz
     fun deleteQuiz(quizId: Long) {
         viewModelScope.launch {
             quizRepository.deleteQuizById(quizId)
         }
     }
-
-    // --- QUIZ GAMEPLAY CONTROL ---
 
     // --- QUIZ GAMEPLAY CONTROL ---
 
@@ -209,7 +411,7 @@ class QuizViewModel(
     }
 
     // Initialize an active quiz session
-    fun startQuizSession(quizWithQuestions: QuizWithQuestions) {
+    fun startQuizSession(quizWithQuestions: QuizWithQuestions, mode: QuizMode) {
         countdownTimer?.cancel()
 
         val totalDurationSeconds = quizWithQuestions.quiz.durationMinutes * 60
@@ -217,16 +419,19 @@ class QuizViewModel(
             quizWithQuestions = quizWithQuestions,
             currentQuestionIndex = 0,
             selectedAnswers = emptyMap(),
-            secondsRemaining = totalDurationSeconds,
-            isTimerRunning = true,
+            secondsRemaining = if (mode == QuizMode.EXAM) totalDurationSeconds else 0,
+            isTimerRunning = (mode == QuizMode.EXAM),
             isSubmitted = false,
-            sessionEntity = null
+            sessionEntity = null,
+            quizMode = mode
         )
 
         _explanations.value = emptyMap() // Clear old explanations
         _loadingExplanations.value = emptySet()
 
-        startTimer(totalDurationSeconds)
+        if (mode == QuizMode.EXAM) {
+            startTimer(totalDurationSeconds)
+        }
     }
 
     private fun startTimer(seconds: Int) {
@@ -259,6 +464,11 @@ class QuizViewModel(
         _activeQuiz.value = currentState.copy(
             selectedAnswers = updatedAnswers
         )
+
+        // Luyện tập xong 1 câu -> update streak
+        if (currentState.quizMode == QuizMode.PRACTICE) {
+            updateStreak()
+        }
     }
 
     // Move next or previous question
@@ -313,6 +523,7 @@ class QuizViewModel(
                 isTimerRunning = false,
                 sessionEntity = session.copy(id = sessionId)
             )
+            updateStreak()
         }
     }
 
@@ -320,7 +531,16 @@ class QuizViewModel(
 
     fun getAIExplanation(question: QuestionEntity, selectedIndex: Int) {
         val questionId = question.id
-        if (_explanations.value.containsKey(questionId) || _loadingExplanations.value.contains(questionId)) {
+        
+        // If it's already loading, don't trigger again
+        if (_loadingExplanations.value.contains(questionId)) {
+            return
+        }
+
+        // If there's an existing successful explanation, we don't need to fetch it again.
+        // But if it's an error message, we allow retrying.
+        val existing = _explanations.value[questionId]
+        if (existing != null && !existing.startsWith("Không thể tải giải tích")) {
             return
         }
 

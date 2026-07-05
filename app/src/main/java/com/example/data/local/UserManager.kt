@@ -2,6 +2,10 @@ package com.example.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.Date
 
 class UserManager private constructor(context: Context) {
 
@@ -72,5 +76,272 @@ class UserManager private constructor(context: Context) {
      */
     fun isUserLoggedIn(): Boolean {
         return getCurrentUser() != null
+    }
+
+    /**
+     * Gets the current streak count for the authenticated user.
+     */
+    fun getStreakCount(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("streak_count_$user", 0)
+    }
+
+    /**
+     * Gets the current active streak count. If the streak is broken (more than 1 day of inactivity), returns 0.
+     */
+    fun getActiveStreakCount(): Int {
+        val user = getCurrentUser() ?: "guest"
+        val lastDate = getLastActiveDate() ?: return 0
+        val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        if (lastDate == currentDate) {
+            return getStreakCount()
+        }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        try {
+            val d1 = sdf.parse(lastDate)
+            val d2 = sdf.parse(currentDate)
+            if (d1 != null && d2 != null) {
+                val diffTime = d2.time - d1.time
+                val diffDays = diffTime / (1000 * 60 * 60 * 24)
+                if (diffDays <= 1L) {
+                    return getStreakCount()
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return 0
+    }
+
+    /**
+     * Gets the last active date (yyyy-MM-dd) string.
+     */
+    fun getLastActiveDate(): String? {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getString("streak_last_date_$user", null)
+    }
+
+    /**
+     * Save active dates and freezes management
+     */
+    fun getActiveDates(): Set<String> {
+        val user = getCurrentUser() ?: "guest"
+        val datesStr = prefs.getString("streak_active_dates_$user", "") ?: ""
+        if (datesStr.isEmpty()) return emptySet()
+        return datesStr.split(",").toSet()
+    }
+
+    fun addActiveDate(dateStr: String) {
+        val user = getCurrentUser() ?: "guest"
+        val currentDates = getActiveDates().toMutableSet()
+        if (currentDates.add(dateStr)) {
+            prefs.edit().putString("streak_active_dates_$user", currentDates.joinToString(",")).apply()
+        }
+    }
+
+    fun getStreakFreezes(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("streak_freezes_$user", 2)
+    }
+
+    fun setStreakFreezes(count: Int) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit().putInt("streak_freezes_$user", count).apply()
+    }
+
+    fun refillStreakFreezes() {
+        setStreakFreezes(2)
+    }
+
+    fun checkAndApplyStreakFreezes() {
+        val user = getCurrentUser() ?: return
+        val lastDate = getLastActiveDate() ?: return
+        val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        if (lastDate == currentDate) return
+
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        try {
+            val d1 = sdf.parse(lastDate)
+            val d2 = sdf.parse(currentDate)
+            if (d1 != null && d2 != null) {
+                val diffTime = d2.time - d1.time
+                val diffDays = diffTime / (1000 * 60 * 60 * 24)
+
+                if (diffDays > 1L) {
+                    val missedDays = (diffDays - 1).toInt()
+                    val freezes = getStreakFreezes()
+
+                    if (freezes >= missedDays) {
+                        // Consume freezes
+                        setStreakFreezes(freezes - missedDays)
+
+                        // Add missed days to active dates
+                        val calendar = Calendar.getInstance()
+                        for (i in 1..missedDays) {
+                            calendar.time = d1
+                            calendar.add(Calendar.DAY_OF_YEAR, i)
+                            val missedDateStr = sdf.format(calendar.time)
+                            addActiveDate(missedDateStr)
+                        }
+
+                        // Adjust last active date to yesterday to preserve the streak
+                        calendar.time = d2
+                        calendar.add(Calendar.DAY_OF_YEAR, -1)
+                        val yesterdayStr = sdf.format(calendar.time)
+                        prefs.edit().putString("streak_last_date_$user", yesterdayStr).apply()
+                    } else {
+                        // Streak broken! Reset streak count to 0
+                        prefs.edit()
+                            .putInt("streak_count_$user", 0)
+                            .remove("streak_last_date_$user")
+                            .apply()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    /**
+     * Updates/advances the streak if active today.
+     * Returns true if the streak count was updated.
+     */
+    fun updateStreak(): Boolean {
+        val user = getCurrentUser() ?: "guest"
+        val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        
+        // Always record today as active
+        addActiveDate(currentDate)
+        
+        val lastDate = getLastActiveDate()
+        val currentStreak = getStreakCount()
+
+        if (lastDate == null) {
+            // First day active ever
+            prefs.edit()
+                .putInt("streak_count_$user", 1)
+                .putString("streak_last_date_$user", currentDate)
+                .apply()
+            return true
+        }
+
+        if (lastDate == currentDate) {
+            // Already active today, no change
+            return false
+        }
+
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        try {
+            val d1 = sdf.parse(lastDate)
+            val d2 = sdf.parse(currentDate)
+            if (d1 != null && d2 != null) {
+                val diffTime = d2.time - d1.time
+                val diffDays = diffTime / (1000 * 60 * 60 * 24)
+                if (diffDays == 1L) {
+                    // Incremented streak
+                    prefs.edit()
+                        .putInt("streak_count_$user", currentStreak + 1)
+                        .putString("streak_last_date_$user", currentDate)
+                        .apply()
+                    return true
+                } else if (diffDays > 1L) {
+                    // Streak broken, reset to 1
+                    prefs.edit()
+                        .putInt("streak_count_$user", 1)
+                        .putString("streak_last_date_$user", currentDate)
+                        .apply()
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            // Parsing error, fallback reset
+            prefs.edit()
+                .putInt("streak_count_$user", 1)
+                .putString("streak_last_date_$user", currentDate)
+                .apply()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Set reminder enabled or disabled for current user.
+     */
+    fun setReminderEnabled(enabled: Boolean) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit().putBoolean("reminder_enabled_$user", enabled).apply()
+    }
+
+    /**
+     * Check if reminder is enabled for current user.
+     */
+    fun isReminderEnabled(): Boolean {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getBoolean("reminder_enabled_$user", false)
+    }
+
+    /**
+     * Save reminder time for current user.
+     */
+    fun setReminderTime(hour: Int, minute: Int) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit()
+            .putInt("reminder_hour_$user", hour)
+            .putInt("reminder_minute_$user", minute)
+            .apply()
+    }
+
+    /**
+     * Get reminder hour for current user.
+     */
+    fun getReminderHour(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("reminder_hour_$user", 20) // default 8 PM
+    }
+
+    /**
+     * Get reminder minute for current user.
+     */
+    fun getReminderMinute(): Int {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getInt("reminder_minute_$user", 0) // default 00
+    }
+
+    /**
+     * Save reminder days of the week for current user.
+     * Days are stored as a comma-separated string of Calendar day-of-week integers.
+     */
+    fun setReminderDays(days: Set<Int>) {
+        val user = getCurrentUser() ?: "guest"
+        val daysStr = days.joinToString(",")
+        prefs.edit().putString("reminder_days_$user", daysStr).apply()
+    }
+
+    /**
+     * Get reminder days of the week for current user.
+     * Defaults to all days of the week (1 to 7).
+     */
+    fun getReminderDays(): Set<Int> {
+        val user = getCurrentUser() ?: "guest"
+        val daysStr = prefs.getString("reminder_days_$user", "1,2,3,4,5,6,7") ?: "1,2,3,4,5,6,7"
+        if (daysStr.isEmpty()) return emptySet()
+        return daysStr.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+    }
+
+    /**
+     * Get the last date when the welcome streak popup was shown.
+     */
+    fun getLastWelcomeShownDate(): String? {
+        val user = getCurrentUser() ?: "guest"
+        return prefs.getString("last_shown_welcome_streak_date_$user", null)
+    }
+
+    /**
+     * Set the last date when the welcome streak popup was shown.
+     */
+    fun setLastWelcomeShownDate(dateStr: String) {
+        val user = getCurrentUser() ?: "guest"
+        prefs.edit().putString("last_shown_welcome_streak_date_$user", dateStr).apply()
     }
 }

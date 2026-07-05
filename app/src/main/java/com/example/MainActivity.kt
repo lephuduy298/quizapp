@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.example.ui.QuizViewModel
+import com.example.ui.QuizMode
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CameraScanScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ManageQuestionsScreen
 import com.example.ui.screens.QuizPlayScreen
 import com.example.ui.screens.QuizReviewScreen
+import com.example.ui.screens.FlashcardScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember { mutableStateOf("home") }
                 var selectedQuizId by remember { mutableLongStateOf(0L) }
                 var selectedSessionId by remember { mutableLongStateOf(0L) }
+                var selectedFolderId by remember { mutableStateOf<Long?>(null) }
 
                 if (currentUser == null) {
                     AuthScreen(
@@ -51,9 +54,13 @@ class MainActivity : ComponentActivity() {
                         "home" -> {
                             HomeScreen(
                                 viewModel = viewModel,
-                                onStartQuiz = { quizWithQuestions ->
-                                    viewModel.startQuizSession(quizWithQuestions)
+                                onStartQuiz = { quizWithQuestions, mode ->
+                                    viewModel.startQuizSession(quizWithQuestions, mode)
                                     currentScreen = "play"
+                                },
+                                onStartFlashcards = { quizWithQuestions ->
+                                    selectedQuizId = quizWithQuestions.quiz.id
+                                    currentScreen = "flashcard"
                                 },
                                 onEditQuiz = { quizWithQuestions ->
                                     selectedQuizId = quizWithQuestions.quiz.id
@@ -64,8 +71,9 @@ class MainActivity : ComponentActivity() {
                                     selectedSessionId = sessionId
                                     currentScreen = "review"
                                 },
-                                onNavigateToCamera = {
+                                onNavigateToCamera = { folderId ->
                                     selectedQuizId = 0L // Creating new quiz
+                                    selectedFolderId = folderId
                                     currentScreen = "camera"
                                 }
                             )
@@ -74,6 +82,7 @@ class MainActivity : ComponentActivity() {
                             CameraScanScreen(
                                 viewModel = viewModel,
                                 targetQuizId = if (selectedQuizId == 0L) null else selectedQuizId,
+                                targetFolderId = selectedFolderId,
                                 onNavigateBack = { 
                                     if (selectedQuizId == 0L) currentScreen = "home" 
                                     else currentScreen = "manage_questions" 
@@ -110,6 +119,13 @@ class MainActivity : ComponentActivity() {
                                 quizId = selectedQuizId,
                                 sessionId = selectedSessionId,
                                 onNavigateHome = { currentScreen = "home" }
+                            )
+                        }
+                        "flashcard" -> {
+                            FlashcardScreen(
+                                viewModel = viewModel,
+                                quizId = selectedQuizId,
+                                onNavigateBack = { currentScreen = "home" }
                             )
                         }
                     }
