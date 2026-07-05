@@ -94,18 +94,10 @@ class QuizViewModel(
     init {
         userManager.checkAndApplyStreakFreezes()
         
-        // Auto-show welcome streak celebration popup on app start if they have an active streak today
+        // Auto-update streak on app start if already logged in
         val user = userManager.getCurrentUser()
         if (user != null) {
-            val streak = userManager.getActiveStreakCount()
-            if (streak > 0) {
-                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-                val lastShown = userManager.getLastWelcomeShownDate()
-                if (lastShown != todayStr) {
-                    _showStreakCelebration.value = streak
-                    userManager.setLastWelcomeShownDate(todayStr)
-                }
-            }
+            updateStreak()
         }
     }
 
@@ -143,6 +135,8 @@ class QuizViewModel(
         val success = userManager.login(username, password)
         if (success) {
             userManager.checkAndApplyStreakFreezes()
+            updateStreak()
+            
             _currentUser.value = userManager.getCurrentUser()
             _streakCount.value = userManager.getActiveStreakCount()
             _reminderEnabled.value = userManager.isReminderEnabled()
@@ -151,17 +145,6 @@ class QuizViewModel(
             _reminderDays.value = userManager.getReminderDays()
             _streakFreezes.value = userManager.getStreakFreezes()
             _activeDates.value = userManager.getActiveDates()
-            
-            // Auto-show welcome streak celebration popup on login if active today
-            val streak = userManager.getActiveStreakCount()
-            if (streak > 0) {
-                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-                val lastShown = userManager.getLastWelcomeShownDate()
-                if (lastShown != todayStr) {
-                    _showStreakCelebration.value = streak
-                    userManager.setLastWelcomeShownDate(todayStr)
-                }
-            }
         }
         return success
     }

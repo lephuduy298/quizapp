@@ -168,34 +168,11 @@ class UserManager private constructor(context: Context) {
                 val diffDays = diffTime / (1000 * 60 * 60 * 24)
 
                 if (diffDays > 1L) {
-                    val missedDays = (diffDays - 1).toInt()
-                    val freezes = getStreakFreezes()
-
-                    if (freezes >= missedDays) {
-                        // Consume freezes
-                        setStreakFreezes(freezes - missedDays)
-
-                        // Add missed days to active dates
-                        val calendar = Calendar.getInstance()
-                        for (i in 1..missedDays) {
-                            calendar.time = d1
-                            calendar.add(Calendar.DAY_OF_YEAR, i)
-                            val missedDateStr = sdf.format(calendar.time)
-                            addActiveDate(missedDateStr)
-                        }
-
-                        // Adjust last active date to yesterday to preserve the streak
-                        calendar.time = d2
-                        calendar.add(Calendar.DAY_OF_YEAR, -1)
-                        val yesterdayStr = sdf.format(calendar.time)
-                        prefs.edit().putString("streak_last_date_$user", yesterdayStr).apply()
-                    } else {
-                        // Streak broken! Reset streak count to 0
-                        prefs.edit()
-                            .putInt("streak_count_$user", 0)
-                            .remove("streak_last_date_$user")
-                            .apply()
-                    }
+                    // Streak broken! Reset streak count to 0 (No freezes used)
+                    prefs.edit()
+                        .putInt("streak_count_$user", 0)
+                        .remove("streak_last_date_$user")
+                        .apply()
                 }
             }
         } catch (e: Exception) {

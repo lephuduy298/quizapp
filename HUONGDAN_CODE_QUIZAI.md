@@ -258,13 +258,13 @@ Hiển thị Markdown trong Compose UI:
 
 ---
 
-## 5. Cơ chế Streak & Tự động Đóng băng chuỗi (Streak Freezes)
+## 5. Cơ chế Streak & Quản lý chuỗi ngày học (Streak Count)
 
 ### A. Chức năng chính:
-Tạo động lực học tập bằng cách đếm số ngày luyện tập liên tục (Streak). Tích hợp "Bình Đóng Băng Chuỗi" (`Streak Freezes`) để tự động tiêu thụ cứu chuỗi nếu lỡ quên học bài và hiển thị lịch học tập trực quan dạng các hình lục giác liên kết.
+Tạo động lực học tập bằng cách đếm số ngày mở ứng dụng liên tục (Streak). Tự động reset chuỗi ngày học về 0 nếu người dùng quên mở app quá 1 ngày. Hiển thị lịch học tập trực quan dạng các hình lục giác liên kết.
 
 ### B. Mã nguồn quan trọng:
-Hàm xử lý đóng băng tự động trong [UserManager.kt](file:///d:/download/android/app/src/main/java/com/example/data/local/UserManager.kt#L156-L204):
+Hàm xử lý kiểm tra và reset chuỗi ngày học trong [UserManager.kt](file:///d:/download/android/app/src/main/java/com/example/data/local/UserManager.kt#L156-L180):
 ```kotlin
 fun checkAndApplyStreakFreezes() {
     val user = getCurrentUser() ?: return
@@ -280,38 +280,15 @@ fun checkAndApplyStreakFreezes() {
             val diffTime = d2.time - d1.time
             val diffDays = diffTime / (1000 * 60 * 60 * 24)
 
-            if (diffDays > 1L) { // Nếu bị đứt chuỗi lớn hơn 1 ngày
-                val missedDays = (diffDays - 1).toInt()
-                val freezes = getStreakFreezes()
-
-                if (freezes >= missedDays) {
-                    // Tiêu thụ lượt đóng băng
-                    setStreakFreezes(freezes - missedDays)
-
-                    // Điền bù các ngày bị bỏ lỡ vào danh sách ngày active để giữ chuỗi liên kết
-                    val calendar = Calendar.getInstance()
-                    for (i in 1..missedDays) {
-                        calendar.time = d1
-                        calendar.add(Calendar.DAY_OF_YEAR, i)
-                        val missedDateStr = sdf.format(calendar.time)
-                        addActiveDate(missedDateStr)
-                    }
-
-                    // Đẩy mốc ngày hoạt động cuối cùng về hôm qua để hôm nay tiếp tục cộng dồn Streak
-                    calendar.time = d2
-                    calendar.add(Calendar.DAY_OF_YEAR, -1)
-                    val yesterdayStr = sdf.format(calendar.time)
-                    prefs.edit().putString("streak_last_date_$user", yesterdayStr).apply()
-                } else {
-                    // Nếu không đủ lượt đóng băng để cứu -> Đứt chuỗi, reset về 0
-                    prefs.edit()
-                        .putInt("streak_count_$user", 0)
-                        .remove("streak_last_date_$user")
-                        .apply()
-                }
+            if (diffDays > 1L) {
+                // Streak bị đứt! Reset chuỗi ngày học về 0
+                prefs.edit()
+                    .putInt("streak_count_$user", 0)
+                    .remove("streak_last_date_$user")
+                    .apply()
             }
         }
-    } catch (e: Exception) { /* Bỏ qua */ }
+    } catch (e: Exception) { // Bỏ qua }
 }
 ```
 
@@ -341,8 +318,8 @@ Canvas(modifier = Modifier.fillMaxSize()) {
 ```
 
 ### C. Điều đặc biệt (Câu hỏi thầy cô):
-*   **Thuật toán xác định đứt chuỗi và đóng băng hoạt động ra sao?**
-    *   *Trả lời:* Thuật toán tính số ngày chênh lệch (`diffDays`) giữa ngày học cuối cùng lưu trong máy (`streak_last_date`) và ngày hôm nay. Nếu `diffDays > 1`, tức là người dùng đã bỏ lỡ ít nhất 1 ngày học. Hệ thống sẽ so sánh số ngày bị lỡ với số lượt Đóng băng chuỗi hiện có. Nếu đủ lượt đóng băng, hệ thống sẽ tự động trừ lượt đóng băng, ghi nhận các ngày bị bỏ lỡ vào dữ liệu hoạt động, và đặt ngày hoạt động cuối về ngày hôm qua (yesterday) để khi hôm nay người dùng trả lời câu hỏi, chuỗi Streak vẫn được cộng dồn mà không bị reset về 0.
+*   **Thuật toán xác định đứt chuỗi và reset hoạt động ra sao?**
+    *   *Trả lời:* Thuật toán tính số ngày chênh lệch (`diffDays`) giữa ngày học cuối cùng lưu trong máy (`streak_last_date`) và ngày hôm nay. Nếu `diffDays > 1`, tức là người dùng đã bỏ lỡ ít nhất 1 ngày học, hệ thống sẽ thực hiện reset số ngày Streak về 0 và xóa mốc ngày gần nhất để ép người dùng phải bắt đầu tích lũy chuỗi lại từ đầu, từ đó rèn luyện thói quen mở ứng dụng học tập mỗi ngày một cách kỷ luật.
 *   **Làm sao để vẽ các ô lịch hình lục giác liên kết với nhau?**
     *   *Trả lời:* Sử dụng cấu trúc lớp `HexagonShape` kế thừa từ `Shape` trong Jetpack Compose để cắt bo tròn ô theo 6 cạnh. Để vẽ đường nối màu cam thể hiện sự liên tục của chuỗi, app vẽ trực tiếp một hình chữ nhật (`drawRect`) nằm bên dưới ô lục giác kéo dài từ tâm ô hiện tại sang mép trái (nếu ngày hôm trước hoạt động) và/hoặc sang mép phải (nếu ngày hôm sau hoạt động).
 
