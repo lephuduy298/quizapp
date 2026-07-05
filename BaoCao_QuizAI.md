@@ -29,8 +29,11 @@
     *   Phân loại đề thi theo từng thư mục học tập riêng biệt.
     *   Chỉnh sửa câu hỏi, thêm câu hỏi thủ công hoặc xóa đề thi dễ dàng.
 5.  **Bảng Lịch Sử & Thống Kê Học Tập (History & Analytics Dashboard):**
-    *   Lưu trữ kết quả tất cả các phiên làm bài.
-    *   Vẽ biểu đồ tiến trình học tập, tính toán điểm số trung bình và đếm chuỗi ngày học liên tục (Streak) để duy trì động lực.
+    *   Lưu trữ kết quả tất cả các phiên làm bài, thống kê điểm số và theo dõi tiến trình làm bài.
+6.  **Hệ thống Duy trì Thói quen & Nhắc nhở Học tập (Streak & Study Reminder):**
+    *   **Chuỗi ngày học liên tục (Streak):** Tính điểm chuỗi học tập hàng ngày khi người dùng hoàn thành ít nhất một đề thi hoặc câu hỏi luyện tập. Khi duy trì chuỗi, hệ thống sẽ hiển thị giao diện chúc mừng sinh động để khuyến khích tinh thần tự học.
+    *   **Đóng băng chuỗi (Streak Freezes):** Hỗ trợ tối đa 2 lượt đóng băng chuỗi mặc định. Khi người dùng không thể học tập (bị đứt chuỗi), hệ thống sẽ tự động tiêu thụ số lượt đóng băng tương ứng để bảo toàn chuỗi Streak của người dùng không bị reset về không. Người dùng có thể khôi phục các lượt đóng băng này dễ dàng.
+    *   **Nhắc nhở học tập (Study Reminders):** Người dùng có thể tự thiết lập giờ báo nhắc cụ thể và các ngày muốn học trong tuần. Hệ thống sẽ tự động gửi thông báo đẩy để nhắc học bài đúng giờ.
 
 ---
 
@@ -45,48 +48,68 @@
 *   **Kết nối mạng & API:** Retrofit 2 & OkHttp 3 để kết nối trực tiếp đến API của Google Gemini.
 *   **Xử lý bất đồng bộ:** Kotlin Coroutines & Flow quản lý dữ liệu bất đồng bộ thời gian thực.
 *   **Trí tuệ nhân tạo (AI Engine):** Kết nối trực tiếp Google Gemini API (model `gemini-3.1-flash-lite` hoặc `gemini-1.5-flash-8b`) để sinh đề thi định dạng JSON và phân tích đáp án.
+*   **Tính năng Báo thức & Thông báo nền:** Sử dụng `AlarmManager` để lên lịch báo thức chính xác, `BroadcastReceiver` để nhận tín hiệu báo nhắc ngay cả khi thiết bị khởi động lại (`BOOT_COMPLETED`), và `NotificationManager` để hiển thị thông báo đẩy nhắc nhở học tập.
+*   **Quản lý quyền động & Lưu trữ cấu hình:** Sử dụng thư viện Accompanist / API ActivityResultContracts của Jetpack Compose để xin quyền hiển thị thông báo động `POST_NOTIFICATIONS` trên Android 13+. Sử dụng `SharedPreferences` thông qua lớp `UserManager` để lưu cấu hình báo thức, chuỗi Streak và số lượt Đóng băng chuỗi cho từng tài khoản người dùng riêng biệt.
 
 ---
 
 ## 4. Kiến trúc Hệ thống (Architecture Overview)
 
-Dự án áp dụng mô hình kiến trúc phân lớp sạch sẽ, tách biệt rõ ràng giữa logic giao diện, logic nghiệp vụ và tầng lưu trữ dữ liệu:
+Dự án áp dụng mô hình kiến trúc phân lớp sạch sẽ, tách biệt rõ ràng giữa logic giao diện, logic nghiệp vụ, tầng lưu trữ dữ liệu và các dịch vụ nền hệ thống:
 
 ```mermaid
 graph TD
     subgraph UI_Layer [Tầng Giao Diện - UI Layer]
         MainActivity[MainActivity - Điều hướng]
         Screens[Screens - HomeScreen, AuthScreen, QuizPlayScreen...]
+        Dialogs[Dialogs - StudyReminderDialog, StreakDetailsDialog, StreakCelebrationDialog]
         QuizViewModel[QuizViewModel - Quản lý trạng thái UI & Tác vụ]
     end
 
     subgraph Repository_Layer [Tầng Nghiệp Vụ - Repository Layer]
         QuizRepository[QuizRepository - Logic dữ liệu đề thi]
         AIRepository[AIRepository - Logic gọi Gemini AI]
-        UserManager[UserManager - Quản lý Auth thông qua SharedPreferences]
+        UserManager[UserManager - Quản lý Auth, Streak, Freezes & Reminder]
     end
 
     subgraph Data_Layer [Tầng Dữ Liệu - Data Layer]
         AppDatabase[(Room Database - Lưu trữ Offline)]
-        SharedPreferences[(SharedPreferences - Lưu Session User)]
+        SharedPreferences[(SharedPreferences - Lưu Session & Lịch sử học)]
         GeminiApiService[Retrofit - Gemini API Client]
+    end
+
+    subgraph System_Components [Thành phần Hệ thống Android]
+        StudyReminderHelper[StudyReminderHelper - Quản lý AlarmManager]
+        AlarmManager[AlarmManager - Trình lập lịch báo thức hệ thống]
+        StudyReminderReceiver[StudyReminderReceiver - Nhận sự kiện & Hiển thị thông báo]
     end
 
     %% Tương tác giữa các tầng
     Screens -->|Quan sát Trạng thái| QuizViewModel
+    Dialogs -->|Tương tác UI & Cấu hình| QuizViewModel
     MainActivity -->|Chứa & Điều hướng| Screens
     QuizViewModel -->|Tương tác Nghiệp vụ| QuizRepository
     QuizViewModel -->|Yêu cầu AI| AIRepository
-    QuizViewModel -->|Quản lý Tài khoản| UserManager
+    QuizViewModel -->|Quản lý Tài khoản & Streak| UserManager
     
     QuizRepository -->|Lưu trữ Cục bộ| AppDatabase
-    UserManager -->|Lưu Session| SharedPreferences
+    UserManager -->|Lưu Session & Streak| SharedPreferences
     AIRepository -->|Truy vấn Cloud API| GeminiApiService
+
+    %% Luồng nhắc nhở học tập
+    QuizViewModel -->|Đặt/Hủy lịch nhắc| StudyReminderHelper
+    StudyReminderHelper -->|Đăng ký Intent| AlarmManager
+    AlarmManager -->|Gửi tín hiệu báo thức| StudyReminderReceiver
+    StudyReminderReceiver -->|Đọc cấu hình & Trạng thái đăng nhập| UserManager
+    StudyReminderReceiver -->|Gửi thông báo đẩy| NotificationManager[Hệ thống Notification Android]
+    BootReceiver[BroadcastReceiver - Khởi động máy] -->|Tự khôi phục lịch báo| StudyReminderReceiver
 ```
 
 ### Các lớp cốt lõi trong mã nguồn:
 1.  **`AppContainer` (Dependency Injection):** Chịu trách nhiệm khởi tạo duy nhất một lần các đối tượng dùng chung như `AppDatabase`, `RetrofitClient`, `QuizRepository`, `AIRepository` và cung cấp chúng cho ViewModel Factory, tránh rò rỉ bộ nhớ.
-2.  **`QuizViewModel`:** Đóng vai trò là "bộ não" điều khiển giao diện. Nó tiếp nhận sự kiện từ người dùng (nhấp chọn, gửi prompt, chụp ảnh), giao tiếp với tầng Repository để lấy dữ liệu, cập nhật State định dạng Flow và tự động vẽ lại giao diện tương ứng trên Compose.
+2.  **`QuizViewModel`:** Đóng vai trò là "bộ não" điều khiển giao diện. Nó tiếp nhận sự kiện từ người dùng (nhập chọn, gửi prompt, chụp ảnh), giao tiếp với tầng Repository để lấy dữ liệu, cập nhật State định dạng Flow và tự động vẽ lại giao diện tương ứng trên Compose.
+3.  **`UserManager`:** Quản lý toàn bộ cấu hình người dùng bao gồm đăng nhập/đăng ký, theo dõi chuỗi ngày học (`Streak`), quản lý lượt cứu vớt chuỗi (`Streak Freezes`), và lưu trữ lịch cấu hình nhắc học. Lớp này sử dụng SharedPreferences được mã hóa/phân biệt theo tên người dùng để lưu dữ liệu cá nhân hóa.
+4.  **`StudyReminderHelper` & `StudyReminderReceiver`:** Bộ đôi quản lý lịch nhắc học tập. `StudyReminderHelper` sử dụng `AlarmManager` để đăng ký báo thức chính xác (hỗ trợ chế độ rỗi `setAndAllowWhileIdle` trên Android M trở lên). `StudyReminderReceiver` (một `BroadcastReceiver`) sẽ tiếp nhận tín hiệu báo thức, đối chiếu ngày hiện tại với các ngày nhắc học được chọn, hiển thị thông báo đẩy nếu hợp lệ, và tự động đặt lịch cho ngày tiếp theo. Nó cũng tự động nạp lại lịch nhắc khi thiết bị khởi động lại.
 
 ---
 
@@ -168,10 +191,60 @@ Giao diện ứng dụng được thiết kế theo phong cách hiện đại v�
 *   **`CameraScanScreen` (Quét ảnh):** Tích hợp CameraX, hiển thị khung căn chỉnh tài liệu tối ưu giúp người dùng chụp ảnh đề thi rõ ràng nhất.
 *   **`QuizPlayScreen` (Làm bài):** Hiển thị thanh tiến trình làm bài, đồng hồ đếm ngược và bảng chuyển câu hỏi nhanh. Tích hợp nút **"Hỏi AI Sư Phụ giải thích"** để xem lời giải ngay lập tức nếu chọn chế độ luyện tập tự do.
 *   **`QuizReviewScreen` (Xem lại):** Đánh dấu màu Xanh lá cho câu trả lời đúng, Đỏ cho câu trả lời sai. Hiển thị hộp thoại chứa nội dung giải thích chi tiết định dạng Markdown từ **Sư phụ AI**.
+*   **`StudyReminderDialog` (Thiết lập Nhắc học):** Hộp thoại cấu hình lịch nhắc học tập hàng ngày. Người dùng có thể bật/tắt nhắc nhở, tùy chỉnh thời gian (giờ và phút) bằng các nút bấm tăng/giảm trực quan và lựa chọn các ngày trong tuần mong muốn. Hỗ trợ yêu cầu cấp quyền thông báo động trên Android 13+.
+*   **`StreakDetailsDialog` (Chi tiết Chuỗi ngày học):** Hộp thoại hiển thị số ngày Streak khổng lồ cùng ngọn lửa phát sáng hoạt hình. Tích hợp lịch học tập dạng ô lưới lục giác (Hexagon Grid) liên kết chặt chẽ với nhau khi có chuỗi ngày học liên tục. Hiển thị trạng thái các lượt "Đóng Băng Chuỗi" và cung cấp nút khôi phục lượt đóng băng.
+*   **`StreakCelebrationDialog` (Chúc mừng giữ lửa):** Màn hình popup chúc mừng với hoạt họa ngọn lửa lớn và hiển thị tiến trình 5 ngày học xung quanh ngày hiện tại, tự động bật lên sau khi hoàn thành bài thi để tạo động lực và khích lệ người dùng.
 
 ---
 
-## 8. Hướng dẫn Triển khai & Cài đặt Dự án
+## 8. Cấu trúc Thư mục Dự án
+
+Dưới đây là sơ đồ tổ chức thư mục mã nguồn chính của ứng dụng QuizAI, làm rõ các gói và tệp tin mới liên quan đến hệ thống nhắc nhở và quản lý chuỗi học tập:
+
+```text
+app/src/main/
+├── AndroidManifest.xml              # Tệp cấu hình ứng dụng Android (Permissions, Receivers...)
+├── java/com/example/
+│   ├── QuizApplication.kt           # Khởi tạo Application & AppContainer
+│   ├── DependencyContainer.kt       # Bộ quản lý DI thủ công (AppContainer)
+│   ├── MainActivity.kt              # Điểm đầu vào chính, quản lý luồng điều hướng màn hình
+│   ├── data/
+│   │   ├── local/
+│   │   │   ├── AppDatabase.kt       # Khởi tạo Room Database
+│   │   │   ├── Dao.kt               # Chứa các interface truy vấn Database (QuizDao, QuizSessionDao)
+│   │   │   ├── Entities.kt          # Room Entities (QuizEntity, QuestionEntity, QuizSessionEntity...)
+│   │   │   └── UserManager.kt       # Quản lý Đăng nhập/Đăng ký, Streak, Freezes & Reminders qua SharedPreferences
+│   │   ├── remote/
+│   │   │   ├── GeminiApiService.kt  # Định nghĩa API Call Retrofit tới Gemini
+│   │   │   ├── GeminiModels.kt      # DTOs cho API Request và Response của Gemini
+│   │   │   ├── GeminiQuizResponse.kt# Khớp cấu trúc JSON phản hồi từ AI
+│   │   │   └── RetrofitClient.kt    # Khởi tạo Retrofit & OkHttpClient cấu hình timeout
+│   │   └── repository/
+│   │       ├── AIRepository.kt      # Repository gửi prompt, nhận phân tích từ AI
+│   │       └── QuizRepository.kt    # Repository quản lý dữ liệu Database cục bộ
+│   ├── reminder/
+│   │   ├── StudyReminderHelper.kt   # Helper lên lịch và hủy báo thức qua AlarmManager
+│   │   └── StudyReminderReceiver.kt # BroadcastReceiver xử lý tín hiệu báo thức và hiển thị Notification
+│   └── ui/
+│       ├── QuizViewModel.kt         # ViewModel quản lý trạng thái nghiệp vụ và dữ liệu giao diện
+│       ├── screens/
+│       │   ├── AuthScreen.kt        # Màn hình đăng nhập/đăng ký người dùng
+│       │   ├── Screens.kt           # Các màn hình chính (Home, Camera, Play, Review, Manage)
+│       │   ├── ReminderDialog.kt    # Dialog cấu hình thời gian nhắc nhở học tập hàng ngày
+│       │   └── StreakDialogs.kt     # Các Dialog hiển thị chi tiết chuỗi học (Lịch lục giác, Đóng băng chuỗi) và Chúc mừng Streak
+│       └── theme/
+│           ├── Color.kt             # Bảng màu Indigo, CorrectGreen, ErrorRed...
+│           ├── Theme.kt             # Cấu hình MyApplicationTheme cho giao diện Sáng/Tối
+│           └── Type.kt              # Định nghĩa Font và Kích thước chữ (Typography)
+└── res/
+    ├── values/
+    │   └── strings.xml              # File định nghĩa chuỗi tài nguyên (App Name: QuizAI)
+    └── xml/                         # Cấu hình backup dữ liệu
+```
+
+---
+
+## 9. Hướng dẫn Triển khai & Cài đặt Dự án
 
 Để chạy thử nghiệm hoặc phát triển ứng dụng này, thực hiện các bước sau:
 

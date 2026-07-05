@@ -101,7 +101,7 @@ class DirectGeminiAIRepositoryImpl(
         }
 
         val prompt = """
-            Analysis the text or exercises in the attached image and generate a complete quiz.
+            Analyze the text or exercises in the attached image and generate a complete quiz containing ALL questions present in the image.
             You MUST return a valid JSON object matching this schema:
             {
               "title": "A concise title of the quiz",
@@ -114,10 +114,14 @@ class DirectGeminiAIRepositoryImpl(
                 }
               ]
             }
-            Always provide between 2 to 4 options per question.
-            Provide at least 3-5 comprehensive questions from the text.
-            The correctOptionIndex must be a valid 0-based index.
-            Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+            Guidelines for extraction:
+            1. Extract ALL questions visible in the image. Do not limit, cap, or pad the list of questions. If there are 10 questions, extract all 10. If there are only 2, extract 2.
+            2. Each numbered index (e.g., "Câu 1", "Question 2", "1.", "2)") in the image indicates a new question.
+            3. The choices labeled with A, B, C, D (or A., B., C., D. or resembling format) are the options for that question. Do not include the labels "A.", "B." etc. in the option text itself.
+            4. Dynamically evaluate the question and determine which option is the correct answer, setting correctOptionIndex to the correct 0-based index (0 for option A, 1 for B, etc.).
+            5. Preserve the language of the questions as they appear in the image (e.g., if the image is in Vietnamese, the extracted questions and options must be in Vietnamese).
+            6. Ensure no formatting wraps like markdown ticks (```json ... ```), return raw JSON only.
+            
             Additional instructions: $promptAddition
         """.trimIndent()
 
