@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -278,13 +279,13 @@ fun AddEditQuestionDialog(
     onDismiss: () -> Unit,
     onSave: (String, List<String>, Int) -> Unit
 ) {
-    var questionText by remember { mutableStateOf(editingQuestion?.text ?: "") }
+    var questionText by remember { mutableStateOf(TextFieldValue(editingQuestion?.text ?: "")) }
     val initialOptions = editingQuestion?.options ?: listOf("", "", "", "")
 
-    var option0 by remember { mutableStateOf(initialOptions.getOrNull(0) ?: "") }
-    var option1 by remember { mutableStateOf(initialOptions.getOrNull(1) ?: "") }
-    var option2 by remember { mutableStateOf(initialOptions.getOrNull(2) ?: "") }
-    var option3 by remember { mutableStateOf(initialOptions.getOrNull(3) ?: "") }
+    var option0 by remember { mutableStateOf(TextFieldValue(initialOptions.getOrNull(0) ?: "")) }
+    var option1 by remember { mutableStateOf(TextFieldValue(initialOptions.getOrNull(1) ?: "")) }
+    var option2 by remember { mutableStateOf(TextFieldValue(initialOptions.getOrNull(2) ?: "")) }
+    var option3 by remember { mutableStateOf(TextFieldValue(initialOptions.getOrNull(3) ?: "")) }
 
     var correctIndex by remember { mutableIntStateOf(editingQuestion?.correctOptionIndex ?: 0) }
 
@@ -326,10 +327,10 @@ fun AddEditQuestionDialog(
                     )
 
                     val optionsState = listOf(
-                        Triple(option0, { it: String -> option0 = it }, "A"),
-                        Triple(option1, { it: String -> option1 = it }, "B"),
-                        Triple(option2, { it: String -> option2 = it }, "C"),
-                        Triple(option3, { it: String -> option3 = it }, "D")
+                        Triple(option0, { it: TextFieldValue -> option0 = it }, "A"),
+                        Triple(option1, { it: TextFieldValue -> option1 = it }, "B"),
+                        Triple(option2, { it: TextFieldValue -> option2 = it }, "C"),
+                        Triple(option3, { it: TextFieldValue -> option3 = it }, "D")
                     )
 
                     optionsState.forEachIndexed { index, (optValue, optChange, letter) ->
@@ -362,9 +363,9 @@ fun AddEditQuestionDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val optionsStrs = listOf(option0, option1, option2, option3)
-                            if (questionText.isNotBlank() && optionsStrs.all { it.isNotBlank() }) {
-                                onSave(questionText, optionsStrs, correctIndex)
+                            val optionsStrs = listOf(option0.text, option1.text, option2.text, option3.text)
+                            if (questionText.text.isNotBlank() && optionsStrs.all { it.isNotBlank() }) {
+                                onSave(questionText.text, optionsStrs, correctIndex)
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)

@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -240,7 +241,7 @@ fun AIChatGenerationDialog(
     onDismiss: () -> Unit,
     onGenerate: (String) -> Unit
 ) {
-    var prompt by remember { mutableStateOf("") }
+    var prompt by remember { mutableStateOf(TextFieldValue("")) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -295,8 +296,8 @@ fun AIChatGenerationDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (prompt.isNotBlank()) {
-                                onGenerate(prompt)
+                            if (prompt.text.isNotBlank()) {
+                                onGenerate(prompt.text)
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)

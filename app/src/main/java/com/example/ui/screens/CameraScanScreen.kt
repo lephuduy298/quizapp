@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,7 +58,7 @@ fun CameraScanScreen(
     val generationState by viewModel.generationState.collectAsState()
 
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
-    var promptAdditionText by remember { mutableStateOf("") }
+    var promptAdditionText by remember { mutableStateOf(TextFieldValue("")) }
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     val scope = rememberCoroutineScope()
 
@@ -70,7 +71,7 @@ fun CameraScanScreen(
                     val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
                     val bitmap = BitmapFactory.decodeStream(inputStream)
                     if (bitmap != null) {
-                        viewModel.generateQuizFromImage(bitmap, promptAdditionText, targetQuizId, targetFolderId)
+                        viewModel.generateQuizFromImage(bitmap, promptAdditionText.text, targetQuizId, targetFolderId)
                     } else {
                         Log.e("CameraScanScreen", "Failed to deserialize selected image to bitmap")
                     }
@@ -233,13 +234,13 @@ fun CameraScanScreen(
                                         if (capture != null) {
                                             viewModel.generateQuizFromImage(
                                                 Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888), // Fallback if emulator
-                                                promptAdditionText,
+                                                promptAdditionText.text,
                                                 targetQuizId,
                                                 targetFolderId
                                             )
                                         } else {
                                             val dummyBitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
-                                            viewModel.generateQuizFromImage(dummyBitmap, promptAdditionText, targetQuizId, targetFolderId)
+                                            viewModel.generateQuizFromImage(dummyBitmap, promptAdditionText.text, targetQuizId, targetFolderId)
                                         }
                                     },
                                 contentAlignment = Alignment.Center

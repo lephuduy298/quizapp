@@ -48,6 +48,7 @@ class QuizViewModel(
     private val userManager: UserManager
 ) : ViewModel() {
 
+
     // User authentication state
     private val _currentUser = MutableStateFlow<String?>(userManager.getCurrentUser())
     val currentUser: StateFlow<String?> = _currentUser.asStateFlow()
@@ -55,6 +56,27 @@ class QuizViewModel(
     // Daily streak count state
     private val _streakCount = MutableStateFlow(userManager.getActiveStreakCount())
     val streakCount: StateFlow<Int> = _streakCount.asStateFlow()
+
+    // Active dates set state
+    private val _activeDates = MutableStateFlow(userManager.getActiveDates())
+    val activeDates: StateFlow<Set<String>> = _activeDates.asStateFlow()
+
+    // Streak freezes remaining state
+    private val _streakFreezes = MutableStateFlow(userManager.getStreakFreezes())
+    val streakFreezes: StateFlow<Int> = _streakFreezes.asStateFlow()
+
+    // Control flag for displaying celebration popup (non-null holds streak count)
+    private val _showStreakCelebration = MutableStateFlow<Int?>(null)
+    val showStreakCelebration: StateFlow<Int?> = _showStreakCelebration.asStateFlow()
+
+    fun dismissStreakCelebration() {
+        _showStreakCelebration.value = null
+    }
+
+    fun refillStreakFreezes() {
+        userManager.refillStreakFreezes()
+        _streakFreezes.value = userManager.getStreakFreezes()
+    }
 
     // Daily study reminder settings
     private val _reminderEnabled = MutableStateFlow(userManager.isReminderEnabled())
@@ -68,6 +90,24 @@ class QuizViewModel(
 
     private val _reminderDays = MutableStateFlow(userManager.getReminderDays())
     val reminderDays: StateFlow<Set<Int>> = _reminderDays.asStateFlow()
+
+    init {
+        userManager.checkAndApplyStreakFreezes()
+        
+        // Auto-show welcome streak celebration popup on app start if they have an active streak today
+        val user = userManager.getCurrentUser()
+        if (user != null) {
+            val streak = userManager.getActiveStreakCount()
+            if (streak > 0) {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val lastShown = userManager.getLastWelcomeShownDate()
+                if (lastShown != todayStr) {
+                    _showStreakCelebration.value = streak
+                    userManager.setLastWelcomeShownDate(todayStr)
+                }
+            }
+        }
+    }
 
     fun updateReminderSettings(enabled: Boolean, hour: Int, minute: Int, days: Set<Int>, context: android.content.Context) {
         userManager.setReminderEnabled(enabled)
@@ -86,19 +126,42 @@ class QuizViewModel(
     }
 
     fun updateStreak() {
-        userManager.updateStreak()
+        val wasUpdated = userManager.updateStreak()
         _streakCount.value = userManager.getActiveStreakCount()
+        _activeDates.value = userManager.getActiveDates()
+        _streakFreezes.value = userManager.getStreakFreezes()
+        
+        if (wasUpdated) {
+            _showStreakCelebration.value = userManager.getActiveStreakCount()
+            // Mark as shown today to prevent triggering again on app restart today
+            val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            userManager.setLastWelcomeShownDate(todayStr)
+        }
     }
 
     fun login(username: String, password: String): Boolean {
         val success = userManager.login(username, password)
         if (success) {
+            userManager.checkAndApplyStreakFreezes()
             _currentUser.value = userManager.getCurrentUser()
             _streakCount.value = userManager.getActiveStreakCount()
             _reminderEnabled.value = userManager.isReminderEnabled()
             _reminderHour.value = userManager.getReminderHour()
             _reminderMinute.value = userManager.getReminderMinute()
             _reminderDays.value = userManager.getReminderDays()
+            _streakFreezes.value = userManager.getStreakFreezes()
+            _activeDates.value = userManager.getActiveDates()
+            
+            // Auto-show welcome streak celebration popup on login if active today
+            val streak = userManager.getActiveStreakCount()
+            if (streak > 0) {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val lastShown = userManager.getLastWelcomeShownDate()
+                if (lastShown != todayStr) {
+                    _showStreakCelebration.value = streak
+                    userManager.setLastWelcomeShownDate(todayStr)
+                }
+            }
         }
         return success
     }
@@ -115,6 +178,9 @@ class QuizViewModel(
         _reminderHour.value = 20
         _reminderMinute.value = 0
         _reminderDays.value = setOf(1, 2, 3, 4, 5, 6, 7)
+        _streakFreezes.value = 2
+        _activeDates.value = emptySet()
+        _showStreakCelebration.value = null
     }
 
     fun isUserLoggedIn(): Boolean {
