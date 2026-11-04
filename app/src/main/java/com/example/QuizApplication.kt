@@ -8,5 +8,7 @@ class QuizApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainerImpl(this)
+        com.example.widget.StudyWidgetUpdates.start(this)
+        com.example.reminder.ReviewDueReminder.start(this)
     }
 }

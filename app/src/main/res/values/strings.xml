@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">QuizAI</string>
+    <string name="study_widget_name">Tiến độ học QuizAI</string>
+    <string name="study_widget_description">Theo dõi chuỗi ngày học, câu đến hạn và mở nhanh phần ôn tập.</string>
+    <string name="focus_widget_name">QuizAI · Tập trung ôn tập</string>
+    <string name="focus_widget_description">Thẻ ôn tập xanh tối giản, làm nổi bật số câu đến hạn.</string>
 </resources>

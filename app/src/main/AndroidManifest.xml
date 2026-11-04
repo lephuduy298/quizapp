@@ -40,6 +40,34 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver android:name=".widget.StudyProgressWidgetReceiver"
+            android:exported="false" android:label="@string/study_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/study_progress_widget" />
+        </receiver>
+
+        <receiver android:name=".widget.FocusStudyWidgetReceiver"
+            android:exported="false" android:label="@string/focus_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/focus_study_widget" />
+        </receiver>
+
+        <receiver android:name=".reminder.ReviewDueReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.reminder.REVIEW_DUE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="com.example.reminder.StudyReminderReceiver"
             android:enabled="true"

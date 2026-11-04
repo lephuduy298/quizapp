@@ -53,7 +53,9 @@ class QuizRepository(
     }
 
     suspend fun updateQuestion(question: QuestionEntity) {
-        quizDao.updateQuestion(question)
+        val original = quizDao.getQuizWithQuestionsById(question.quizId)?.questions?.find { it.id == question.id } ?: return
+        quizDao.updateQuestion(question.copy(skillId = original.skillId, difficulty = original.difficulty,
+            contentVersion = original.contentVersion + 1))
     }
 
     suspend fun deleteQuestion(question: QuestionEntity) {

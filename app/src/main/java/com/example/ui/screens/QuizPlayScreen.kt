@@ -30,6 +30,7 @@ fun QuizPlayScreen(
     onViewSession: (Long) -> Unit
 ) {
     val activeState by viewModel.activeQuiz.collectAsState()
+    val reviewError by viewModel.reviewError.collectAsState()
     val quiz = activeState.quizWithQuestions ?: return
 
     val currentQuestionIndex = activeState.currentQuestionIndex
@@ -182,6 +183,7 @@ fun QuizPlayScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            reviewError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             // Question text box details
             Box(
                 modifier = Modifier

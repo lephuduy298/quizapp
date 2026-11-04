@@ -45,7 +45,8 @@ fun ManageQuestionsScreen(
     viewModel: QuizViewModel,
     quizId: Long,
     onNavigateBack: () -> Unit,
-    onAddViaAI: (Long) -> Unit
+    onAddViaAI: (Long) -> Unit,
+    onAdaptiveLearning: () -> Unit = {}
 ) {
     val allQuizzes by viewModel.quizzes.collectAsState(initial = emptyList())
     val quizWithQuestions = allQuizzes.find { it.quiz.id == quizId }
@@ -74,6 +75,9 @@ fun ManageQuestionsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onAdaptiveLearning) {
+                        Icon(Icons.Default.Psychology, "Phân loại kỹ năng và luyện thích ứng", tint = PrimaryPurple)
+                    }
                     if (quizWithQuestions != null && quizWithQuestions.questions.isNotEmpty()) {
                         val context = LocalContext.current
                         IconButton(onClick = { exportQuizToPdf(context, quizWithQuestions) }) {

@@ -1,0 +1,15 @@
+<resources>
+    <color name="study_widget_background">#F6F3FC</color>
+    <color name="study_widget_ink">#292238</color>
+    <color name="study_widget_muted">#6D647B</color>
+    <color name="study_widget_accent">#6750A4</color>
+    <color name="study_widget_on_accent">#FFFFFF</color>
+    <color name="study_widget_surface">#EAE4F4</color>
+    <color name="study_widget_flame_background">#FFF0DC</color>
+    <color name="focus_widget_background">#F5F5EC</color>
+    <color name="focus_widget_ink">#1F3B32</color>
+    <color name="focus_widget_muted">#64756A</color>
+    <color name="focus_widget_accent">#265C49</color>
+    <color name="focus_widget_on_accent">#FFFFFF</color>
+    <color name="focus_widget_surface">#E4EADD</color>
+</resources>

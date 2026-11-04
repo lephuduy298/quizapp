@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import androidx.room.Index
 import androidx.room.TypeConverter
+import androidx.room.ColumnInfo
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -54,7 +55,10 @@ data class QuestionEntity(
     val quizId: Long,
     val text: String,
     val options: List<String>, // Needs TypeConverter
-    val correctOptionIndex: Int
+    val correctOptionIndex: Int,
+    val skillId: Long? = null,
+    @ColumnInfo(defaultValue = "2") val difficulty: Int = 2,
+    @ColumnInfo(defaultValue = "1") val contentVersion: Int = 1
 )
 
 @Entity(
