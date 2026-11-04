@@ -1,0 +1,5 @@
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/study_widget_background" android:padding="16dp"
+    android:text="QuizAI · Đang tải…" android:textSize="15sp"
+    android:textColor="@color/study_widget_ink" android:gravity="center" />

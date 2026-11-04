@@ -71,6 +71,33 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import java.text.SimpleDateFormat
 import java.util.*
 
+@Composable
+private fun FolderFilterChip(name: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(name, modifier = Modifier.widthIn(max = 180.dp), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+                Text("($count)", maxLines = 1, softWrap = false)
+            }
+        },
+        leadingIcon = { Icon(if (selected) Icons.Default.Folder else Icons.Default.FolderOpen,
+            contentDescription = null, modifier = Modifier.size(18.dp)) },
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (selected) PrimaryPurple else BorderColor),
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Color.White,
+            labelColor = BodyTextColor,
+            iconColor = PrimaryPurple,
+            selectedContainerColor = LightPurpleContainer,
+            selectedLabelColor = DarkPurple,
+            selectedLeadingIconColor = DarkPurple
+        )
+    )
+}
+
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
@@ -79,7 +106,8 @@ fun HomeScreen(
     onStartFlashcards: (QuizWithQuestions) -> Unit,
     onEditQuiz: (QuizWithQuestions) -> Unit,
     onViewSession: (QuizWithQuestions, Long) -> Unit,
-    onNavigateToCamera: (Long?) -> Unit
+    onNavigateToCamera: (Long?) -> Unit,
+    onStudy: () -> Unit = {}
 ) {
     val quizzes by viewModel.quizzes.collectAsState(initial = emptyList())
     val sessions by viewModel.sessions.collectAsState(initial = emptyList())
@@ -276,6 +304,22 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                item {
+                    Card(onClick = onStudy, modifier = Modifier.fillMaxWidth().testTag("study_hub_entry"),
+                        colors = CardDefaults.cardColors(containerColor = LightPurpleContainer, contentColor = DarkPurple),
+                        shape = RoundedCornerShape(20.dp)) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Default.Psychology, null, tint = PrimaryPurple, modifier = Modifier.size(32.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Học & ôn tập", fontWeight = FontWeight.Bold, color = DarkPurple)
+                                Text("Luyện điểm yếu • Ôn lặp lại ngắt quãng • Theo dõi tiến độ", color = SecondaryTextColor,
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            Icon(Icons.Default.ChevronRight, "Mở học & ôn tập", tint = PrimaryPurple)
+                        }
+                    }
+                }
                 // HIGH DENSITY SUMMARY CARDS
                 item {
                     Row(
@@ -455,65 +499,63 @@ fun HomeScreen(
                             }
                         }
 
-                        // Horizontal list of chips
-                        androidx.compose.foundation.lazy.LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Chip: All
-                            item {
-                                val isSelected = selectedFolderId == null
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedFolderId = null },
-                                    label = { Text("Tất cả (${quizzes.size})") },
-                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                )
-                            }
-                            
-                            // Chip: Uncategorized
-                            item {
-                                val uncategorizedCount = quizzes.count { it.quiz.folderId == null }
-                                val isSelected = selectedFolderId == -1L
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedFolderId = -1L },
-                                    label = { Text("Chưa phân loại ($uncategorizedCount)") },
-                                    leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                )
-                            }
-
-                            // Chips: User folders
-                            items(folders) { folder ->
-                                val quizCount = quizzes.count { it.quiz.folderId == folder.id }
-                                val isSelected = selectedFolderId == folder.id
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedFolderId = folder.id },
-                                    label = { Text("${folder.name} ($quizCount)") },
-                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                )
-                            }
-
-                            // Chip: Add new folder
-                            item {
-                                var showCreateDialog by remember { mutableStateOf(false) }
-                                AssistChip(
-                                    onClick = { showCreateDialog = true },
-                                    label = { Text("Thư mục mới") },
-                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                )
-                                
-                                if (showCreateDialog) {
-                                    CreateEditFolderDialog(
-                                        editingFolder = null,
-                                        onDismiss = { showCreateDialog = false },
-                                        onSave = { name ->
-                                            viewModel.createFolder(name)
-                                            showCreateDialog = false
-                                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.foundation.lazy.LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(4.dp),
+                                modifier = Modifier.weight(1f).testTag("folder_list")
+                            ) {
+                                // Chip: All
+                                item {
+                                    val isSelected = selectedFolderId == null
+                                    FolderFilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedFolderId = null },
+                                        name = "Tất cả", count = quizzes.size
                                     )
                                 }
+
+                                // Chip: Uncategorized
+                                item {
+                                    val uncategorizedCount = quizzes.count { it.quiz.folderId == null }
+                                    val isSelected = selectedFolderId == -1L
+                                    FolderFilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedFolderId = -1L },
+                                        name = "Chưa phân loại", count = uncategorizedCount
+                                    )
+                                }
+
+                                // Chips: User folders
+                                items(folders, key = { it.id }) { folder ->
+                                    val quizCount = quizzes.count { it.quiz.folderId == folder.id }
+                                    val isSelected = selectedFolderId == folder.id
+                                    FolderFilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedFolderId = folder.id },
+                                        name = folder.name, count = quizCount
+                                    )
+                                }
+
+                            }
+                            var showCreateDialog by remember { mutableStateOf(false) }
+                            FilledTonalIconButton(
+                                onClick = { showCreateDialog = true },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = LightPurpleContainer, contentColor = DarkPurple),
+                                modifier = Modifier.testTag("create_folder_button")
+                            ) { Icon(Icons.Default.CreateNewFolder, contentDescription = "Thư mục mới") }
+
+                            if (showCreateDialog) {
+                                CreateEditFolderDialog(
+                                    editingFolder = null,
+                                    onDismiss = { showCreateDialog = false },
+                                    onSave = { name ->
+                                        viewModel.createFolder(name)
+                                        showCreateDialog = false
+                                    }
+                                )
                             }
                         }
                     }
@@ -647,7 +689,7 @@ fun HomeScreen(
                 tonalElevation = 6.dp
             ) {
                 var title by remember { mutableStateOf(TextFieldValue("")) }
-                var topic by remember { mutableStateOf(TextFieldValue("Năng lực Nhật ngữ")) }
+                var topic by remember { mutableStateOf(TextFieldValue("")) }
                 var duration by remember { mutableStateOf("15") }
 
                 Column(

@@ -1,0 +1,7 @@
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:src="@drawable/focus_widget_preview"
+    android:scaleType="fitCenter"
+    android:adjustViewBounds="true"
+    android:contentDescription="@string/focus_widget_name" />

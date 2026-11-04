@@ -14,6 +14,10 @@ import com.example.data.local.QuizWithQuestions
 import com.example.data.local.UserManager
 import com.example.data.repository.AIRepository
 import com.example.data.repository.QuizRepository
+import com.example.data.repository.ReviewRepository
+import com.example.learning.ReviewRating
+import kotlinx.coroutines.CancellationException
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,8 +49,24 @@ data class ActiveQuizState(
 class QuizViewModel(
     private val quizRepository: QuizRepository,
     private val aiRepository: AIRepository,
-    private val userManager: UserManager
+    private val userManager: UserManager,
+    private val reviewRepository: ReviewRepository
 ) : ViewModel() {
+    val reviewError = MutableStateFlow<String?>(null)
+    private var quizEventKey = UUID.randomUUID().toString()
+    private var quizOwner: String? = null
+    private var submitting = false
+
+    suspend fun rateFlashcard(question: QuestionEntity, rating: ReviewRating, token: String): Boolean {
+        val user = currentUser.value ?: return false
+        reviewError.value = null
+        return try {
+            val saved = reviewRepository.rate(user, question.id, question.contentVersion, rating, token)
+            if (!saved) reviewError.value = "Câu hỏi đã thay đổi hoặc không còn tồn tại. Mở lại bộ thẻ để tiếp tục."
+            saved
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { reviewError.value = e.message ?: "Không thể lưu lịch ôn."; false }
+    }
 
 
     // User authentication state
@@ -154,6 +174,10 @@ class QuizViewModel(
     }
 
     fun logout() {
+        countdownTimer?.cancel()
+        _activeQuiz.value = ActiveQuizState()
+        quizOwner = null
+        reviewError.value = null
         userManager.logout()
         _currentUser.value = null
         _streakCount.value = userManager.getActiveStreakCount()
@@ -396,6 +420,9 @@ class QuizViewModel(
     // Initialize an active quiz session
     fun startQuizSession(quizWithQuestions: QuizWithQuestions, mode: QuizMode) {
         countdownTimer?.cancel()
+        quizEventKey = UUID.randomUUID().toString()
+        quizOwner = currentUser.value
+        reviewError.value = null
 
         val totalDurationSeconds = quizWithQuestions.quiz.durationMinutes * 60
         _activeQuiz.value = ActiveQuizState(
@@ -439,7 +466,10 @@ class QuizViewModel(
     // Select an answer for current active question
     fun selectAnswer(questionId: Long, optionIndex: Int) {
         val currentState = _activeQuiz.value
-        if (currentState.isSubmitted) return
+        if (currentState.isSubmitted || submitting) return
+        val question = currentState.quizWithQuestions?.questions?.find { it.id == questionId } ?: return
+        if (optionIndex !in question.options.indices) return
+        if (currentState.quizMode == QuizMode.PRACTICE && questionId in currentState.selectedAnswers) return
 
         val updatedAnswers = currentState.selectedAnswers.toMutableMap()
         updatedAnswers[questionId] = optionIndex
@@ -450,6 +480,13 @@ class QuizViewModel(
 
         // Luyện tập xong 1 câu -> update streak
         if (currentState.quizMode == QuizMode.PRACTICE) {
+            val user = quizOwner ?: return
+            val token = "practice:$quizEventKey:$questionId"
+            viewModelScope.launch {
+                try { reviewRepository.recordAnswer(user, question.id, question.contentVersion, optionIndex, token) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { reviewError.value = "Không thể lưu kết quả ôn: ${e.message}" }
+            }
             updateStreak()
         }
     }
@@ -470,7 +507,11 @@ class QuizViewModel(
         countdownTimer?.cancel()
         val currentState = _activeQuiz.value
         val quiz = currentState.quizWithQuestions ?: return
-        if (currentState.isSubmitted) return
+        if (currentState.isSubmitted || submitting) return
+        val user = quizOwner ?: return
+        val runKey = quizEventKey
+        submitting = true
+        reviewError.value = null
 
         // Calculate score
         var correctCount = 0
@@ -500,13 +541,17 @@ class QuizViewModel(
         )
 
         viewModelScope.launch {
-            val sessionId = quizRepository.insertSession(session)
-            _activeQuiz.value = currentState.copy(
-                isSubmitted = true,
-                isTimerRunning = false,
-                sessionEntity = session.copy(id = sessionId)
-            )
-            updateStreak()
+            try {
+                val sessionId = reviewRepository.saveQuizSession(user, session, quiz.questions,
+                    eventPrefix = if (currentState.quizMode == QuizMode.EXAM) "exam:$runKey" else "practice:$runKey")
+                if (currentUser.value == user && quizEventKey == runKey) {
+                    _activeQuiz.value = currentState.copy(isSubmitted = true, isTimerRunning = false,
+                        sessionEntity = session.copy(id = sessionId))
+                    updateStreak()
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { reviewError.value = "Không thể lưu bài làm: ${e.message}. Hãy nộp lại." }
+            finally { submitting = false }
         }
     }
 
@@ -566,11 +611,12 @@ class QuizViewModel(
         fun provideFactory(
             quizRepository: QuizRepository,
             aiRepository: AIRepository,
-            userManager: UserManager
+            userManager: UserManager,
+            reviewRepository: ReviewRepository
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return QuizViewModel(quizRepository, aiRepository, userManager) as T
+                return QuizViewModel(quizRepository, aiRepository, userManager, reviewRepository) as T
             }
         }
     }

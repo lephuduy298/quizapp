@@ -253,6 +253,16 @@ class UserManager private constructor(context: Context) {
     /**
      * Check if reminder is enabled for current user.
      */
+    fun isReviewReminderEnabled(): Boolean {
+        val user = getCurrentUser()?.trim()?.lowercase(Locale.ROOT) ?: return false
+        return prefs.getBoolean("review_due_enabled_$user", false)
+    }
+
+    fun setReviewReminderEnabled(enabled: Boolean) {
+        val user = getCurrentUser()?.trim()?.lowercase(Locale.ROOT) ?: return
+        prefs.edit().putBoolean("review_due_enabled_$user", enabled).apply()
+    }
+
     fun isReminderEnabled(): Boolean {
         val user = getCurrentUser() ?: "guest"
         return prefs.getBoolean("reminder_enabled_$user", false)

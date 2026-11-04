@@ -7,14 +7,20 @@ import com.example.data.remote.RetrofitClient
 import com.example.data.repository.AIRepository
 import com.example.data.repository.DirectGeminiAIRepositoryImpl
 import com.example.data.repository.QuizRepository
+import com.example.data.repository.LearningRepository
+import com.example.data.repository.ReviewRepository
 
 interface AppContainer {
+    val reviewRepository: ReviewRepository
+    val learningRepository: LearningRepository
     val quizRepository: QuizRepository
     val aiRepository: AIRepository
     val userManager: UserManager
 }
 
 class AppContainerImpl(private val context: Context) : AppContainer {
+    override val reviewRepository: ReviewRepository by lazy { ReviewRepository(database) }
+    override val learningRepository: LearningRepository by lazy { LearningRepository(database) }
     private val database: AppDatabase by lazy {
         AppDatabase.getDatabase(context)
     }
